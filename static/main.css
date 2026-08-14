@@ -340,8 +340,8 @@ textarea#topic:focus{ outline:none; border-color:var(--accent); }
   .summary{ position:static; margin-top:8px; }
   .source-grid{ grid-template-columns:1fr; }
   .music-grid{ grid-template-columns:repeat(2, 1fr); }
-  .hero{ padding:28px 0 16px; }
-section{ padding:22px 0; }
-.section-head{ margin-bottom:14px; }
-.dot-divider{ padding:6px 0; }
+  .hero{ padding:36px 0 18px; }
+section{ padding:28px 0; }
+.section-head{ margin-bottom:18px; }
+.dot-divider{ padding:8px 0; }
 }
