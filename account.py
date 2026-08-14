@@ -22,7 +22,7 @@ async def api_account(request: Request):
     try:
         rows = db.execute(
             """
-            SELECT topic, source, duration, price_kop, status, created_at
+            SELECT topic, source, duration, price_kop, status, created_at, video_path, expires_at
             FROM generations
             WHERE user_id = ?
             ORDER BY id DESC

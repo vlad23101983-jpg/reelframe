@@ -9,6 +9,7 @@ import glob
 import random
 import shutil
 import asyncio
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, UploadFile, File
 from fastapi.responses import JSONResponse
@@ -252,7 +253,11 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
             )
             db = get_db()
             try:
-                db.execute("UPDATE generations SET status = 'done' WHERE id = ?", (generation_id,))
+                expires_at = (datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+                db.execute(
+                    "UPDATE generations SET status = 'done', video_path = ?, expires_at = ? WHERE id = ?",
+                    (f"/media/{public_name}", expires_at, generation_id),
+                )
                 db.commit()
             finally:
                 db.close()

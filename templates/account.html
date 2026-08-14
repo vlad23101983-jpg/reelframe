@@ -136,6 +136,7 @@
             <div class="hist-main">
               <p class="hist-topic">${escapeHtml(item.topic)}</p>
               <p class="hist-meta">${SOURCE_TITLES[item.source] || item.source} · ${item.duration}с · ${formatDate(item.created_at)}</p>
+              ${videoActionHtml(item)}
             </div>
             <div class="hist-right">
               <span class="hist-price">${Math.floor(item.price_kop / 100)} ₽</span>
@@ -148,9 +149,23 @@
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('content').style.display = 'block';
 
+
     } catch (e) {
       document.getElementById('loadingState').textContent = 'Не удалось загрузить данные';
     }
+  }
+
+  function videoActionHtml(item) {
+    if (item.status !== 'done') return '';
+
+    if (item.video_path && item.expires_at && new Date(item.expires_at.replace(' ', 'T') + 'Z') > new Date()) {
+      return `<p class="hist-video-action">
+        <a href="${item.video_path}" download style="color:var(--accent-dim); text-decoration:underline; font-size:12.5px;">Скачать видео</a>
+        <span style="color:var(--ink-faint); font-size:11.5px; margin-left:6px;">хранится 24 часа с момента создания</span>
+      </p>`;
+    }
+
+    return `<p class="hist-video-action" style="color:var(--ink-faint); font-size:11.5px;">Истёк срок хранения (видео доступно 24 часа)</p>`;
   }
 
   function escapeHtml(str) {

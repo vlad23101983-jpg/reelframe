@@ -8,6 +8,7 @@ Kinomotor — веб-сервис генерации коротких видео
 from dotenv import load_dotenv
 load_dotenv()
 
+import asyncio
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -17,6 +18,7 @@ from pages import router as pages_router
 from account import router as account_router
 from generate import router as generate_router
 from payments import router as payments_router
+from cleanup import run_cleanup_loop
 
 app = FastAPI(title="Kinomotor")
 
@@ -24,6 +26,7 @@ app = FastAPI(title="Kinomotor")
 @app.on_event("startup")
 async def on_startup():
     init_db()
+    asyncio.create_task(run_cleanup_loop())
 
 
 app.include_router(auth_router)
