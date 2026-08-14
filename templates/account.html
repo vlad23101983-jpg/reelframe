@@ -82,7 +82,10 @@
     <div id="content" style="display:none;">
       <div class="balance-card">
         <div>
-          <p style="font-size:12px; color:var(--ink-faint); margin:0 0 6px;" id="emailLabel"></p>
+          <p style="font-size:12px; color:var(--ink-faint); margin:0 0 6px; display:flex; align-items:center; gap:10px;">
+            <span id="emailLabel"></span>
+            <a href="#" onclick="logout(event)" style="color:var(--ink-faint); text-decoration:underline; cursor:pointer;">Выйти</a>
+          </p>
           <p class="balance-label">Баланс</p>
           <p class="balance-value" id="balanceValue">0 <span class="kop">₽</span></p>
         </div>
@@ -195,6 +198,16 @@
       alert('Ошибка сети');
     }
   }
+  async function logout(e) {
+    e.preventDefault();
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      // даже если запрос не прошёл, всё равно уводим на главную
+    }
+    window.location.href = '/';
+  }
+
   loadAccount();
 </script>
 
