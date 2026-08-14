@@ -21,7 +21,7 @@ RUNPOD_ZIMAGE_ENDPOINT_ID = os.getenv("RUNPOD_ZIMAGE_ENDPOINT_ID", "")
 RUNPOD_BASE_URL = "https://api.runpod.ai/v2"
 
 POLL_INTERVAL_SECONDS = 2
-MAX_WAIT_SECONDS = 120
+MAX_WAIT_SECONDS = 300  # с запасом на холодный старт (первый запрос может ждать разворачивания воркера)
 
 # Workflow в API-формате, экспортированный из ComfyUI (граф "image_z_image_turbo").
 # Промпт, размеры и seed подставляются перед каждым запросом.
