@@ -18,6 +18,7 @@ from pages import router as pages_router
 from account import router as account_router
 from generate import router as generate_router
 from payments import router as payments_router
+from admin import router as admin_router
 from cleanup import run_cleanup_loop
 
 app = FastAPI(title="Kinomotor")
@@ -34,6 +35,7 @@ app.include_router(pages_router)
 app.include_router(account_router)
 app.include_router(generate_router)
 app.include_router(payments_router)
+app.include_router(admin_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory="media"), name="media")
