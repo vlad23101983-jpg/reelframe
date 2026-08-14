@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кабинет — Kinomotor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/main.css?v={{ static_version('main.css') }}">
+<style>
+  .acc-shell{ max-width:720px; margin:0 auto; padding:56px 28px 90px; }
+  .acc-title{
+    font-family:'Fraunces', serif; font-weight:600;
+    font-size:clamp(26px, 3.4vw, 34px); margin:0 0 32px;
+  }
+
+  .balance-card{
+    border:1px solid var(--hairline); border-radius:10px;
+    background:var(--bg-panel); padding:28px 30px;
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:16px; margin-bottom:36px;
+  }
+  .balance-label{
+    font-family:'JetBrains Mono', monospace; font-size:12px;
+    color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.08em;
+    margin:0 0 6px;
+  }
+  .balance-value{
+    font-family:'Fraunces', serif; font-weight:600;
+    font-size:36px; color:var(--ink);
+  }
+  .balance-value .kop{ font-size:20px; color:var(--ink-faint); }
+
+  .hist-title{ font-size:14px; font-weight:600; margin:28px 0 16px; color:var(--ink-dim); }
+
+  .hist-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 0; border-bottom:1px solid var(--hairline); gap:16px;
+  }
+  .hist-row:last-child{ border-bottom:none; }
+  .hist-main{ flex:1; min-width:0; }
+  .hist-topic{
+    font-size:14.5px; font-weight:600; margin:0 0 4px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .hist-meta{
+    font-size:12.5px; color:var(--ink-faint);
+    font-family:'JetBrains Mono', monospace;
+  }
+  .hist-right{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
+  .hist-price{
+    font-family:'JetBrains Mono', monospace; font-size:13.5px;
+    color:var(--accent-dim); font-weight:600;
+  }
+  .hist-status{
+    font-size:11px; padding:4px 10px; border-radius:20px;
+    font-family:'JetBrains Mono', monospace; text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .hist-status.done{ background:var(--accent-soft); color:var(--accent-dim); }
+  .hist-status.pending{ background:var(--bg-panel-2); color:var(--ink-faint); }
+  .hist-status.error{ background:rgba(193,80,46,0.12); color:var(--accent); }
+
+  .empty-state{
+    text-align:center; padding:50px 20px; color:var(--ink-faint); font-size:14px;
+  }
+
+  .loading{ text-align:center; padding:40px; color:var(--ink-faint); font-size:14px; }
+</style>
+</head>
+<body>
+
+{% include "header.html" %}
+
+<main>
+  <div class="acc-shell">
+    <h1 class="acc-title">Кабинет</h1>
+
+    <div id="loadingState" class="loading">Загружаем...</div>
+
+    <div id="content" style="display:none;">
+      <div class="balance-card">
+        <div>
+          <p style="font-size:12px; color:var(--ink-faint); margin:0 0 6px;" id="emailLabel"></p>
+          <p class="balance-label">Баланс</p>
+          <p class="balance-value" id="balanceValue">0 <span class="kop">₽</span></p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="topupBtn" onclick="topUp()">Пополнить</button>
+          <a href="/create" class="btn btn-primary">Создать видео</a>
+        </div>
+      </div>
+      <div id="topupPanel" style="display:none; border:1px solid var(--hairline); border-radius:10px; background:var(--bg-panel); padding:20px 24px; margin-top:14px; gap:12px; align-items:center; flex-wrap:wrap;">
+        <input type="number" id="topupAmount" min="10" value="500" style="width:140px; padding:12px 14px; border:1px solid var(--hairline); border-radius:8px; font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--bg); color:var(--ink);">
+        <span style="color:var(--ink-faint); font-size:14px;">₽</span>
+        <button class="btn btn-primary" onclick="confirmTopUp()">Перейти к оплате</button>
+        <button onclick="cancelTopUp()" style="background:none; border:none; color:var(--ink-faint); font-size:13px; cursor:pointer; text-decoration:underline;">Отмена</button>
+      </div>
+      <p class="hist-title">История генераций</p>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</main>
+
+{% include "footer.html" %}
+
+<script>
+  const SOURCE_TITLES = { ai: 'Картинки от ИИ', upload: 'Мои фото', veo: 'Veo' };
+  const STATUS_TITLES = { pending: 'В процессе', done: 'Готово', error: 'Ошибка' };
+
+  async function loadAccount() {
+    try {
+      const res = await fetch('/api/account');
+
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const data = await res.json();
+      document.getElementById('emailLabel').textContent = data.email;
+      document.getElementById('balanceValue').innerHTML =
+        `${Math.floor(data.balance_kop / 100)} <span class="kop">₽</span>`;
+
+      const list = document.getElementById('historyList');
+
+      if (!data.history || data.history.length === 0) {
+        list.innerHTML = '<div class="empty-state">Пока нет ни одного ролика — самое время создать первый.</div>';
+      } else {
+        list.innerHTML = data.history.map(item => `
+          <div class="hist-row">
+            <div class="hist-main">
+              <p class="hist-topic">${escapeHtml(item.topic)}</p>
+              <p class="hist-meta">${SOURCE_TITLES[item.source] || item.source} · ${item.duration}с · ${formatDate(item.created_at)}</p>
+            </div>
+            <div class="hist-right">
+              <span class="hist-price">${Math.floor(item.price_kop / 100)} ₽</span>
+              <span class="hist-status ${item.status}">${STATUS_TITLES[item.status] || item.status}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+    } catch (e) {
+      document.getElementById('loadingState').textContent = 'Не удалось загрузить данные';
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatDate(isoStr) {
+    const d = new Date(isoStr.replace(' ', 'T') + 'Z');
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  }
+
+
+  function topUp() {
+    document.getElementById('topupPanel').style.display = 'flex';
+    document.getElementById('topupBtn').style.display = 'none';
+    document.getElementById('topupAmount').focus();
+  }
+
+  function cancelTopUp() {
+    document.getElementById('topupPanel').style.display = 'none';
+    document.getElementById('topupBtn').style.display = 'inline-flex';
+  }
+
+  async function confirmTopUp() {
+    const amountNum = parseInt(document.getElementById('topupAmount').value, 10);
+    if (!amountNum || amountNum < 10) {
+      alert('Введите сумму не меньше 10 ₽');
+      return;
+    }
+    try {
+      const res = await fetch('/api/payment/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_rub: amountNum })
+      });
+      const data = await res.json();
+      if (data.payment_url) {
+        window.location.href = data.payment_url;
+      } else {
+        alert(data.message || 'Не удалось создать платёж');
+      }
+    } catch (e) {
+      alert('Ошибка сети');
+    }
+  }
+  loadAccount();
+</script>
+
+</body>
+</html>

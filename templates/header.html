@@ -1,0 +1,34 @@
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">
+      <svg class="logo-mark" viewBox="0 0 100 160" aria-hidden="true">
+        <rect x="2"  y="65" width="16" height="30" rx="8" fill="var(--gray-bar-dark)"/>
+        <rect x="28" y="47" width="16" height="66" rx="8" fill="var(--gray-bar)"/>
+        <rect x="54" y="24" width="16" height="112" rx="8" fill="var(--accent)"/>
+        <rect x="80" y="52" width="16" height="56" rx="8" fill="var(--gray-bar)"/>
+      </svg>
+      <span class="logo-word"><span class="dim">kino</span><span class="bright">motor</span></span>
+    </a>
+    <div class="header-actions" id="headerActions" style="display:flex; align-items:center; gap:16px;">
+      <span id="headerAuthSlot"></span>
+      <a href="/create" class="header-cta" id="headerCreateBtn">Создать видео →</a>
+    </div>
+  </div>
+</header>
+
+<script>
+  (function() {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(data => {
+        const slot = document.getElementById('headerAuthSlot');
+        if (data.logged_in) {
+          slot.innerHTML = '<a href="/account" style="font-size:13px; color:var(--ink-dim); text-decoration:none;">Кабинет</a>';
+          document.getElementById('headerActions').classList.add('is-logged-in');
+        } else {
+          slot.innerHTML = '<a href="/login" style="font-size:13px; color:var(--ink-dim); text-decoration:none;">Войти</a>';
+        }
+      })
+      .catch(() => {});
+  })();
+</script>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Создать видео — Kinomotor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/main.css?v={{ static_version('main.css') }}">
+</head>
+<body>
+
+{% include "header.html" %}
+
+<div class="wrap shell">
+  <div>
+    <h1 class="page-title">Создать видео</h1>
+
+    <div class="field">
+      <label class="field-label">Из чего собрать</label>
+      <div class="field-hint">Способ, которым будут созданы кадры ролика</div>
+      <div class="source-grid">
+        <div class="opt on" data-src="ai" onclick="pick(this,'source')">
+          <div class="opt-top"><span class="opt-name">Картинки от ИИ</span><span class="opt-price mono">от 80 ₽</span></div>
+          <div class="opt-desc">Нейросеть рисует кадры по теме и добавляет движение камеры</div>
+        </div>
+        <div class="opt" data-src="upload" onclick="pick(this,'source')">
+          <div class="opt-top"><span class="opt-name">Мои фото</span><span class="opt-price mono">от 40 ₽</span></div>
+          <div class="opt-desc">Ваши снимки оживают движением камеры, с озвучкой и музыкой</div>
+        </div>
+        <div class="opt" data-src="veo" onclick="pick(this,'source')">
+          <div class="opt-top"><span class="opt-name">Veo</span><span class="opt-price mono">от 180 ₽</span></div>
+          <div class="opt-desc">Живое видео от Google — настоящее движение в кадре</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Длительность</label>
+      <div class="dur-grid">
+        <div class="dur-opt" data-dur="10" onclick="pick(this,'duration')">
+          <div class="dur-time">00:10</div><div class="dur-sub" id="ds10">от 4 кадра</div>
+        </div>
+        <div class="dur-opt on" data-dur="15" onclick="pick(this,'duration')">
+          <div class="dur-time">00:15</div><div class="dur-sub" id="ds15">от 5 кадров</div>
+        </div>
+        <div class="dur-opt" data-dur="20" onclick="pick(this,'duration')">
+          <div class="dur-time">00:20</div><div class="dur-sub" id="ds20">от 6 кадров</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field" id="uploadField" style="display:none;">
+      <label class="field-label">Ваши фото</label>
+      <div class="field-hint" id="uploadHint">Для 15 секунд нужно от 4 до 7 фото</div>
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-main">Перетащите фото сюда или нажмите, чтобы выбрать</div>
+        <div class="upload-sub" id="uploadCount">Файлы не выбраны</div>
+      </div>
+      <input type="file" id="fileInput" multiple accept="image/*" style="display:none;" onchange="filesPicked(this)">
+      <ul class="upload-tips">
+        <li>Вертикальные фото (как снимает телефон) — идеально, ничего не обрежется</li>
+        <li>Не меньше 1080 пикселей по короткой стороне, иначе на зуме будет размыто</li>
+        <li>Горизонтальные тоже подойдут — по краям появятся размытые поля</li>
+      </ul>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Тема ролика</label>
+      <div class="field-hint">Опишите, о чём видео — сценарий, хук и хештеги напишутся сами</div>
+      <textarea id="topic" placeholder="Например: три привычки, которые помогают проснуться бодрым" oninput="sync()"></textarea>
+      <div class="char-count"><span id="topicLen">0</span> символов</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Голос диктора</label>
+      <div class="voice-grid">
+        <div class="voice-opt on" data-voice="v_artem" data-title="Артём" onclick="pick(this,'voice')">
+          <div class="voice-name">Артём</div><div class="voice-desc">Уверенный мужской — бизнес, обзоры, мотивация</div>
+        </div>
+        <div class="voice-opt" data-voice="v_maria" data-title="Мария" onclick="pick(this,'voice')">
+          <div class="voice-name">Мария</div><div class="voice-desc">Тёплый женский — истории, блоги, философия</div>
+        </div>
+        <div class="voice-opt" data-voice="v_nikolay" data-title="Николай" onclick="pick(this,'voice')">
+          <div class="voice-name">Николай</div><div class="voice-desc">Мужской средних лет — универсальный для соцсетей</div>
+        </div>
+        <div class="voice-opt" data-voice="v_mikhail" data-title="Михаил" onclick="pick(this,'voice')">
+          <div class="voice-name">Михаил</div><div class="voice-desc">Спокойный без пафоса — история, наука</div>
+        </div>
+        <div class="voice-opt" data-voice="v_viktoria" data-title="Виктория" onclick="pick(this,'voice')">
+          <div class="voice-name">Виктория</div><div class="voice-desc">Харизматичный женский — реклама, сторителлинг</div>
+        </div>
+        <div class="voice-opt" data-voice="v_pavel" data-title="Павел" onclick="pick(this,'voice')">
+          <div class="voice-name">Павел</div><div class="voice-desc">Молодой мужской — живой разговорный стиль</div>
+        </div>
+        <div class="voice-opt" data-voice="v_ekaterina" data-title="Екатерина" onclick="pick(this,'voice')">
+          <div class="voice-name">Екатерина</div><div class="voice-desc">Мягкий женский — сказки, медитации, дети</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Музыка</label>
+      <div class="music-grid">
+        <div class="opt on" data-music="m_energetic" data-title="Энергичная" onclick="pick(this,'music')">
+          <div class="opt-name">Энергичная</div><div class="opt-desc">Динамичный бит, для мотивации</div>
+        </div>
+        <div class="opt" data-music="m_business" data-title="Бизнес / фон" onclick="pick(this,'music')">
+          <div class="opt-name">Бизнес / фон</div><div class="opt-desc">Нейтральная подложка, не отвлекает</div>
+        </div>
+        <div class="opt" data-music="m_calm" data-title="Спокойная" onclick="pick(this,'music')">
+          <div class="opt-name">Спокойная</div><div class="opt-desc">Мягкая, расслабляющая атмосфера</div>
+        </div>
+        <div class="opt" data-music="m_none" data-title="Без музыки" onclick="pick(this,'music')">
+          <div class="opt-name">Без музыки</div><div class="opt-desc">Только голос диктора</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="toggle-row">
+        <div>
+          <div class="field-label" style="margin-bottom:3px;">Заголовок-хук в начале</div>
+          <div style="font-size:12.5px; color:var(--muted);">Цепляющая надпись поверх первых 3.5 секунд</div>
+        </div>
+        <div class="switch on" id="hookSwitch" onclick="toggleHook()"></div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="summary" id="summary">
+    <h3>ВАШ РОЛИК</h3>
+    <div class="srow"><span class="k">Источник</span><span class="v" id="sSource">Картинки от ИИ</span></div>
+    <div class="srow"><span class="k">Длительность</span><span class="v" id="sDur">00:15</span></div>
+    <div class="srow"><span class="k">Голос</span><span class="v" id="sVoice">Артём</span></div>
+    <div class="srow"><span class="k">Музыка</span><span class="v" id="sMusic">Энергичная</span></div>
+    <div class="srow"><span class="k">Хук</span><span class="v" id="sHook">Да</span></div>
+    <div class="stotal"><span class="k">Итого</span><span class="v mono" id="sPrice">120 ₽</span></div>
+    <button class="btn btn-primary" id="createBtn" onclick="startGen()" disabled style="width:100%;">Создать видео</button>
+    <div class="balance-note" id="balanceNote">Спишется с баланса</div>
+  </aside>
+</div>
+
+{% include "footer.html" %}
+
+<script>
+const PRICES = {
+  ai:     {10:80,  15:120, 20:160},
+  upload: {10:40,  15:50,  20:60},
+  veo:    {10:180, 15:240, 20:280}
+};
+const PHOTO_RANGE = {10:[3,5], 15:[4,7], 20:[5,8]};
+const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', veo:'Veo'};
+
+const st = {source:'ai', duration:'15', voice:'v_artem', voiceTitle:'Артём',
+            music:'m_energetic', musicTitle:'Энергичная', hook:true, topic:'',
+            files:0, upload_id:''};
+
+function pick(el, group){
+  el.parentElement.querySelectorAll('.opt, .dur-opt, .voice-opt').forEach(o=>o.classList.remove('on'));
+  el.classList.add('on');
+  if(group==='source') st.source = el.dataset.src;
+  if(group==='duration') st.duration = el.dataset.dur;
+  if(group==='voice'){ st.voice = el.dataset.voice; st.voiceTitle = el.dataset.title; }
+  if(group==='music'){ st.music = el.dataset.music; st.musicTitle = el.dataset.title; }
+  sync();
+}
+
+function toggleHook(){
+  st.hook = !st.hook;
+  document.getElementById('hookSwitch').classList.toggle('on', st.hook);
+  sync();
+}
+
+function filesPicked(input){
+  st.files = input.files.length;
+  const [min,max] = PHOTO_RANGE[st.duration];
+  const el = document.getElementById('uploadCount');
+  if(st.files < min) el.textContent = `Выбрано ${st.files} — нужно минимум ${min}`;
+  else if(st.files > max) el.textContent = `Выбрано ${st.files} — максимум ${max} для этой длительности`;
+  else el.textContent = `Выбрано ${st.files} фото`;
+  sync();
+}
+
+function sync(){
+  const t = document.getElementById('topic');
+  st.topic = t.value;
+  document.getElementById('topicLen').textContent = t.value.length;
+
+  const isUpload = st.source === 'upload';
+  document.getElementById('uploadField').style.display = isUpload ? 'block' : 'none';
+
+  const [min,max] = PHOTO_RANGE[st.duration];
+  document.getElementById('uploadHint').textContent =
+    `Для ${st.duration} секунд нужно от ${min} до ${max} фото — чем меньше, тем спокойнее ритм`;
+
+  const isVeo = st.source === 'veo';
+  if(isUpload){
+    document.getElementById('ds10').textContent = '3–5 фото';
+    document.getElementById('ds15').textContent = '4–7 фото';
+    document.getElementById('ds20').textContent = '5–8 фото';
+  } else if(isVeo){
+    document.getElementById('ds10').textContent = '2 сцены';
+    document.getElementById('ds15').textContent = '4 сцены';
+    document.getElementById('ds20').textContent = '5 сцен';
+  } else {
+    document.getElementById('ds10').textContent = '4 кадра';
+    document.getElementById('ds15').textContent = '5 кадров';
+    document.getElementById('ds20').textContent = '6 кадров';
+  }
+
+  document.getElementById('sSource').textContent = SRC_TITLE[st.source];
+  document.getElementById('sDur').textContent = '00:' + st.duration;
+  document.getElementById('sVoice').textContent = st.voiceTitle;
+  document.getElementById('sMusic').textContent = st.musicTitle;
+  document.getElementById('sHook').textContent = st.hook ? 'Да' : 'Нет';
+
+  const price = PRICES[st.source][st.duration];
+  document.getElementById('sPrice').textContent = price + ' ₽';
+
+  const topicOk = st.topic.trim().length >= 8;
+  const filesOk = !isUpload || (st.files >= min && st.files <= max);
+  document.getElementById('createBtn').disabled = !(topicOk && filesOk);
+}
+
+async function startGen(){
+  const s = document.getElementById('summary');
+  s.innerHTML = `<h3>ГЕНЕРАЦИЯ</h3>
+    <div class="progress-list">
+      <div class="prow active" id="p1"><span class="pdot">1</span> Пишем сценарий</div>
+      <div class="prow" id="p2"><span class="pdot">2</span> Генерируем озвучку</div>
+      <div class="prow" id="p3"><span class="pdot">3</span> Создаём кадры</div>
+      <div class="prow" id="p4"><span class="pdot">4</span> Собираем видео</div>
+    </div>`;
+
+  try{
+    if(st.source === 'upload'){
+      const input = document.getElementById('fileInput');
+      const fd = new FormData();
+      for(const file of input.files){
+        fd.append('files', file);
+      }
+      const up = await fetch('/api/upload', {method:'POST', body: fd});
+      const upData = await up.json();
+      if(!upData.upload_id) throw new Error('Не удалось загрузить фото');
+      st.upload_id = upData.upload_id;
+    }
+    const res = await fetch('/api/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(st)
+    });
+
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
+    if (res.status === 402) {
+      s.innerHTML = `<h3>НЕДОСТАТОЧНО СРЕДСТВ</h3><p style="font-size:13.5px; color:var(--muted);">Пополните баланс, чтобы создать видео.</p>`;
+      return;
+    }
+
+    const data = await res.json();
+    poll(data.task_id);
+  }catch(e){
+    s.innerHTML = `<h3>ОШИБКА</h3><p style="font-size:13.5px; color:var(--muted);">${e.message || 'Не удалось запустить генерацию'}</p>`;
+  }
+}
+
+function poll(taskId){
+  const timer = setInterval(async ()=>{
+    try{
+      const r = await fetch('/api/status/' + taskId);
+      const d = await r.json();
+
+      for(let i=1; i<=4; i++){
+        const row = document.getElementById('p'+i);
+        if(!row) continue;
+        row.classList.toggle('done', d.step > i);
+        row.classList.toggle('active', d.step === i);
+      }
+
+      if(d.status === 'done'){
+        clearInterval(timer);
+        showResult(d);
+      }
+      if(d.status === 'error'){
+        clearInterval(timer);
+        document.getElementById('summary').innerHTML =
+          `<h3>ОШИБКА</h3><p style="font-size:13.5px; color:var(--muted);">${d.error || 'Что-то пошло не так'}</p>`;
+      }
+    }catch(e){}
+  }, 2000);
+}
+
+function showResult(d){
+  const tags = (d.hashtags || []).join(' ');
+  document.getElementById('summary').innerHTML = `
+    <h3>ГОТОВО</h3>
+    <video src="${d.video_url}" controls style="width:100%; border-radius:12px; margin-bottom:16px;"></video>
+    <a href="${d.video_url}" download class="btn btn-primary" style="width:100%; margin-bottom:18px;">Скачать видео</a>
+    <div style="font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace; margin-bottom:8px;">ОПИСАНИЕ ДЛЯ ПОСТА</div>
+    <p style="font-size:13px; line-height:1.6; margin-bottom:10px;">${d.social_description || ''}</p>
+    <p style="font-size:13px; color:var(--accent); margin-bottom:14px;">${tags}</p>
+    <button class="btn btn-primary" style="width:100%;" onclick="location.reload()">Создать ещё</button>`;
+}
+
+sync();
+</script>
+
+</body>
+</html>

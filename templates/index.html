@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinomotor — AI Video Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/main.css?v={{ static_version('main.css') }}">
+</head>
+<body>
+
+{% include "header.html" %}
+
+<main>
+
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <h1 class="display">Опишите тему — получите<br><em>готовое видео</em><br>за 1–2 минуты</h1>        <p class="hero-sub">
+          Озвучка, музыка и кадры собираются автоматически. Видео, описание и хештеги —
+          можно сразу публиковать. <span class="hero-price">От 40 ₽ за ролик.</span>
+        </p>
+        <div class="hero-ctas">
+          <a href="/create" class="btn btn-primary">
+            Создать видео
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="leader-wrap">
+        <div class="leader">
+          <svg viewBox="0 0 200 200">
+            <circle class="leader-track" cx="100" cy="100" r="89.4"/>
+            <circle class="leader-sweep" cx="100" cy="100" r="89.4"/>
+          </svg>
+          <div class="leader-play">
+            <svg viewBox="0 0 100 100"><polygon points="38,30 38,70 74,50" fill="var(--accent)"/></svg>
+          </div>
+        </div>
+        <p class="leader-caption">от темы до готового ролика — <b>1–2 мин</b></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="dot-divider"><div class="dot-row" id="dotRow0"></div></div>
+
+  <!-- ===== Что автоматизирует Kinomotor ===== -->
+  <section id="automation">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title display">Всё, что раньше делал монтажёр — теперь автоматически</h2>
+          <p class="section-lead">Автомонтаж сам склеивает кадры, сцены, видео и картинки, накладывает озвучку и музыку — и выдаёт готовый ролик с хуком, описанием и хештегами.</p>
+        </div>
+      </div>
+
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="feat-icon"><i style="height:40%"></i><i style="height:70%;background:var(--accent)"></i><i style="height:55%"></i></div>
+          <h4>Сценарий и хук</h4>
+          <p>ИИ пишет сценарий и цепляющий хук под вашу тему — с нуля по тексту или по загруженным изображениям.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i style="height:60%"></i><i style="height:100%;background:var(--accent)"></i><i style="height:45%"></i></div>
+          <h4>Голос и озвучка</h4>
+          <p>Дикторская озвучка на выбор — несколько голосов, можно выбрать тот, что подходит по интонации и теме.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i style="height:35%"></i><i style="height:80%;background:var(--accent)"></i><i style="height:60%"></i></div>
+          <h4>Фоновая музыка</h4>
+          <p>Музыка подбирается автоматически под настроение ролика и сводится с озвучкой без лишних действий.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i style="height:50%"></i><i style="height:90%;background:var(--accent)"></i><i style="height:30%"></i></div>
+          <h4>Автомонтаж</h4>
+          <p>Программа сама собирает и склеивает кадры, сцены, видео, картинки, озвучку и музыку в один ролик.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i style="height:45%"></i><i style="height:65%;background:var(--accent)"></i><i style="height:85%"></i></div>
+          <h4>ИИ-кадры или свои</h4>
+          <p>Видео можно собрать по текстовому описанию, по ИИ-картинкам — или загрузить собственные фото.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i style="height:70%"></i><i style="height:40%;background:var(--accent)"></i><i style="height:95%"></i></div>
+          <h4>Описание и хештеги</h4>
+          <p>На выходе — готовое видео с описанием и хештегами для соцсетей, можно публиковать сразу.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Сравнение времени ===== -->
+  <section id="time">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 class="section-title display">3 часа монтажа → 2 минуты</h2>
+        <span class="section-num mono">без диктора, монтажёра и поиска музыки</span>
+      </div>
+
+      <div class="compare">
+        <div class="compare-row">
+          <span class="compare-label">Раньше</span>
+          <div class="compare-bar-track"><div class="compare-bar old"></div></div>
+          <span class="compare-value">~3 часа</span>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label">С Kinomotor</span>
+          <div class="compare-bar-track"><div class="compare-bar new"></div></div>
+          <span class="compare-value new">2 мин</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="dot-divider"><div class="dot-row" id="dotRow1"></div></div>
+
+  <section id="sources">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 class="section-title display">Из чего собрать видео</h2>
+        <span class="section-num mono">3 источника кадров</span>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <span class="card-tag">Вариант 01</span>
+          <h3>Картинки от ИИ</h3>
+          <p>Нейросеть рисует кадры под вашу тему и добавляет движение камеры — плавный zoom или панораму, как в реальной съёмке.</p>
+        </div>
+        <div class="card">
+          <span class="card-tag">Вариант 02</span>
+          <h3>Ваши фото</h3>
+          <p>Загружаете свои снимки — Kinomotor добавляет движение камеры и накладывает озвучку с музыкой, так же как на ИИ-картинках.</p>
+        </div>
+        <div class="card">
+          <span class="card-tag">Вариант 03</span>
+          <h3>Veo</h3>
+          <p>Veo (Google) снимает настоящее движение в кадре — идущего человека, текущую воду, ветер в волосах.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="dot-divider"><div class="dot-row" id="dotRow2"></div></div>
+
+  <!-- ===== Как это работает ===== -->
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 class="section-title display">Как это работает</h2>
+        <span class="section-num mono">3 шага к готовому ролику</span>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num mono">01</div>
+          <h4>Задайте тему</h4>
+          <p>Опишите идею словами или загрузите свои изображения для основы ролика.</p>
+        </div>
+        <div class="step">
+          <div class="step-num mono">02</div>
+          <h4>ИИ собирает видео</h4>
+          <p>Сервис генерирует визуал, пишет сценарий, накладывает голос и фоновую музыку.</p>
+        </div>
+        <div class="step">
+          <div class="step-num mono">03</div>
+          <h4>Скачайте и опубликуйте</h4>
+          <p>Получите готовое видео с готовым описанием и хештегами для соцсетей.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="dot-divider"><div class="dot-row" id="dotRow3"></div></div>
+
+  <!-- ===== Примеры: карусель 9:16 ===== -->
+  <section id="examples">
+    <div class="wrap">
+
+      <div class="section-head">
+        <h2 class="section-title display">Примеры видео</h2>
+        <span class="section-num mono">формат 9:16 · листайте →</span>
+      </div>
+
+      <div class="reel-carousel" tabindex="0" aria-label="Примеры видео, формат 9:16">
+        {% for item in examples %}
+        <div class="reel" onclick="playReel(this, '{{ item.video_url }}')">
+          <div class="reel-visual" style="background-image:url('{{ item.thumb_url }}'); background-size:cover; background-position:center;">
+            <div class="reel-badge"><span>{{ item.duration }}</span><span class="ratio">9:16</span></div>
+            <div class="reel-play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg></div>
+          </div>
+        </div>
+        {% else %}
+        <p style="color:var(--ink-faint); font-size:14px;">Примеры скоро появятся здесь.</p>
+        {% endfor %}
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+{% include "footer.html" %}
+
+<script>
+  function fillDots(id, count){
+    const row = document.getElementById(id);
+    for(let i=0;i<count;i++){ row.appendChild(document.createElement('span')); }
+  }
+  function playReel(el, videoUrl) {
+    const visual = el.querySelector('.reel-visual');
+    visual.innerHTML = '<video src="' + videoUrl + '" controls autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>';
+  }
+  ['dotRow0','dotRow1','dotRow2','dotRow3'].forEach(id => fillDots(id, 64));
+</script>
+
+</body>
+</html>

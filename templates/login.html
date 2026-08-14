@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Вход — Kinomotor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/main.css?v={{ static_version('main.css') }}">
+<style>
+  .auth-shell{
+    max-width:420px; margin:0 auto;
+    padding:64px 28px 90px;
+  }
+  .auth-title{
+    font-family:'Fraunces', serif; font-weight:600;
+    font-size:clamp(26px, 3.4vw, 34px); margin:0 0 10px; text-align:center;
+  }
+  .auth-sub{
+    color:var(--ink-dim); font-size:14.5px; text-align:center;
+    margin:0 0 32px; line-height:1.5;
+  }
+  .auth-field{ margin-bottom:18px; }
+  .auth-input{
+    width:100%; border:1px solid var(--hairline); border-radius:8px;
+    padding:14px 16px; font-family:'Inter',sans-serif; font-size:15px;
+    background:var(--bg-panel); color:var(--ink);
+  }
+  .auth-input:focus{ outline:none; border-color:var(--accent); }
+  .auth-btn{
+    width:100%; text-align:center; justify-content:center;
+  }
+  .auth-error{
+    color:var(--accent-dim); font-size:13px; margin-top:10px; text-align:center;
+    display:none;
+  }
+  .auth-error.show{ display:block; }
+
+  .code-inputs{
+    display:flex; gap:8px; justify-content:center; margin-bottom:22px;
+  }
+  .code-digit{
+    width:44px; height:54px; text-align:center;
+    font-family:'JetBrains Mono', monospace; font-size:22px; font-weight:600;
+    border:1px solid var(--hairline); border-radius:8px;
+    background:var(--bg-panel); color:var(--ink);
+  }
+  .code-digit:focus{ outline:none; border-color:var(--accent); }
+
+  .auth-back{
+    display:block; text-align:center; margin-top:18px;
+    font-size:13px; color:var(--ink-faint); text-decoration:none;
+    cursor:pointer;
+  }
+  .auth-back:hover{ color:var(--accent-dim); }
+
+  .auth-resend{
+    display:block; text-align:center; margin-top:14px;
+    font-size:13px; color:var(--ink-faint);
+  }
+  .auth-resend button{
+    background:none; border:none; color:var(--accent-dim);
+    font-size:13px; cursor:pointer; text-decoration:underline; padding:0;
+    font-family:'Inter',sans-serif;
+  }
+  .auth-resend button:disabled{
+    color:var(--ink-faint); text-decoration:none; cursor:default;
+  }
+
+  .step{ display:none; }
+  .step.active{ display:block; }
+</style>
+</head>
+<body>
+
+{% include "header.html" %}
+
+<main>
+  <div class="auth-shell">
+
+    <!-- Шаг 1: ввод email -->
+    <div class="step active" id="stepEmail">
+      <h1 class="auth-title">Вход в Kinomotor</h1>
+      <p class="auth-sub">Введите email — пришлём код для входа.</p>
+
+      <div class="auth-field">
+        <input
+          type="email"
+          class="auth-input"
+          id="emailInput"
+          placeholder="you@example.com"
+          autocomplete="email"
+          onkeydown="if(event.key==='Enter') requestCode()"
+        >
+      </div>
+
+      <button class="btn btn-primary auth-btn" id="requestBtn" onclick="requestCode()">
+        Получить код
+      </button>
+
+      <p class="auth-error" id="emailError"></p>
+    </div>
+
+    <!-- Шаг 2: ввод кода -->
+    <div class="step" id="stepCode">
+      <h1 class="auth-title">Введите код</h1>
+      <p class="auth-sub" id="codeSentTo">Мы отправили 6-значный код на вашу почту.</p>
+
+      <div class="code-inputs" id="codeInputs">
+        <input type="text" inputmode="numeric" maxlength="1" class="code-digit" data-i="0">
+        <input type="text" inputmode="numeric" maxlength="1" class="code-digit" data-i="1">
+        <input type="text" inputmode="numeric" maxlength="1" class="code-digit" data-i="2">
+        <input type="text" inputmode="numeric" maxlength="1" class="code-digit" data-i="3">
+        <input type="text" inputmode="numeric" maxlength="1" class="code-digit" data-i="4">
+        <input type="text" inputmode="numeric" maxlength="1" class="code-digit" data-i="5">
+      </div>
+
+      <button class="btn btn-primary auth-btn" id="verifyBtn" onclick="verifyCode()">
+        Войти
+      </button>
+
+      <p class="auth-error" id="codeError"></p>
+
+      <div class="auth-resend">
+        Не пришло письмо?
+        <button id="resendBtn" onclick="requestCode(true)">Отправить ещё раз</button>
+        <span id="resendTimer"></span>
+      </div>
+
+      <a class="auth-back" onclick="backToEmail()">← Изменить email</a>
+    </div>
+
+  </div>
+</main>
+
+{% include "footer.html" %}
+
+<script>
+  let currentEmail = '';
+  let resendCooldown = 0;
+  let resendTimerHandle = null;
+
+  function showError(elId, message) {
+    const el = document.getElementById(elId);
+    el.textContent = message;
+    el.classList.add('show');
+  }
+  function clearError(elId) {
+    const el = document.getElementById(elId);
+    el.textContent = '';
+    el.classList.remove('show');
+  }
+
+  async function requestCode(isResend) {
+    const email = isResend ? currentEmail : document.getElementById('emailInput').value.trim();
+    clearError('emailError');
+    clearError('codeError');
+
+    if (!email || !email.includes('@')) {
+      showError('emailError', 'Введите корректный email');
+      return;
+    }
+
+    const btn = isResend ? document.getElementById('resendBtn') : document.getElementById('requestBtn');
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = isResend ? 'Отправляем...' : 'Отправляем...';
+
+    try {
+      const res = await fetch('/api/auth/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        showError(isResend ? 'codeError' : 'emailError', data.error || 'Не удалось отправить код');
+        btn.disabled = false;
+        btn.textContent = originalText;
+        return;
+      }
+
+      currentEmail = email;
+      document.getElementById('codeSentTo').textContent = `Код отправлен на ${email}`;
+
+      if (!isResend) {
+        document.getElementById('stepEmail').classList.remove('active');
+        document.getElementById('stepCode').classList.add('active');
+        document.querySelector('.code-digit[data-i="0"]').focus();
+      } else {
+        startResendCooldown();
+      }
+
+      btn.disabled = false;
+      btn.textContent = originalText;
+
+    } catch (e) {
+      showError(isResend ? 'codeError' : 'emailError', 'Ошибка сети, попробуйте ещё раз');
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+
+    if (!isResend) startResendCooldown();
+  }
+
+  function startResendCooldown() {
+    resendCooldown = 30;
+    const resendBtn = document.getElementById('resendBtn');
+    const timerEl = document.getElementById('resendTimer');
+    resendBtn.disabled = true;
+
+    clearInterval(resendTimerHandle);
+    resendTimerHandle = setInterval(() => {
+      resendCooldown--;
+      if (resendCooldown <= 0) {
+        clearInterval(resendTimerHandle);
+        resendBtn.disabled = false;
+        timerEl.textContent = '';
+      } else {
+        timerEl.textContent = ` (через ${resendCooldown}с)`;
+      }
+    }, 1000);
+  }
+
+  function backToEmail() {
+    document.getElementById('stepCode').classList.remove('active');
+    document.getElementById('stepEmail').classList.add('active');
+    clearError('codeError');
+    document.querySelectorAll('.code-digit').forEach(inp => inp.value = '');
+  }
+
+  async function verifyCode() {
+    clearError('codeError');
+    const digits = Array.from(document.querySelectorAll('.code-digit')).map(i => i.value).join('');
+
+    if (digits.length !== 6) {
+      showError('codeError', 'Введите все 6 цифр кода');
+      return;
+    }
+
+    const btn = document.getElementById('verifyBtn');
+    btn.disabled = true;
+    btn.textContent = 'Проверяем...';
+
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentEmail, code: digits })
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        showError('codeError', data.error || 'Код неверный или истёк');
+        btn.disabled = false;
+        btn.textContent = 'Войти';
+        return;
+      }
+
+      window.location.href = '/create';
+
+    } catch (e) {
+      showError('codeError', 'Ошибка сети, попробуйте ещё раз');
+      btn.disabled = false;
+      btn.textContent = 'Войти';
+    }
+  }
+
+  // Автопереход между полями кода + вставка кода целиком из буфера
+  document.querySelectorAll('.code-digit').forEach((input, idx, all) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/[^0-9]/g, '');
+      if (input.value && idx < all.length - 1) {
+        all[idx + 1].focus();
+      }
+      if (idx === all.length - 1 && input.value) {
+        verifyCode();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) {
+        all[idx - 1].focus();
+      }
+    });
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+      if (pasted.length === 6) {
+        all.forEach((inp, i) => inp.value = pasted[i] || '');
+        verifyCode();
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

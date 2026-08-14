@@ -1,0 +1,37 @@
+"""
+Kinomotor — веб-сервис генерации коротких видео.
+
+"Запуск на VPS:
+    uvicorn main:app --host 0.0.0.0 --port 8000
+"""
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from db import init_db
+from auth import router as auth_router
+from pages import router as pages_router
+from account import router as account_router
+from generate import router as generate_router
+from payments import router as payments_router
+
+app = FastAPI(title="Kinomotor")
+
+
+@app.on_event("startup")
+async def on_startup():
+    init_db()
+
+
+app.include_router(auth_router)
+app.include_router(pages_router)
+app.include_router(account_router)
+app.include_router(generate_router)
+app.include_router(payments_router)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/media", StaticFiles(directory="media"), name="media")
+
