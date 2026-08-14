@@ -9,14 +9,13 @@ Kinomotor — admin.py
 import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from db import get_db
 from auth import get_current_user
+from pages import templates
 
 router = APIRouter(tags=["admin"])
-templates = Jinja2Templates(directory="templates")
 
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 
