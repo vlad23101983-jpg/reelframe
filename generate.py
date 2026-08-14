@@ -21,7 +21,7 @@ from auth import get_current_user
 from app.config import VOICE_PRESETS
 from app.script_generator import get_video_script
 from app.image_generator import generate_imagen_clip
-from app.zimage_generator import generate_zimage_clip
+from app.zimage_generator import generate_zimage_clip, warm_up as warm_up_zimage
 from app.photo_processor import prepare_user_photo
 from app.veo_generator import generate_veo_clips, get_scenes_count
 from app.assembler import assemble_final_video
@@ -153,6 +153,10 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
         try:
             TASKS[task_id].update(status="running", step=1)
             is_veo = payload.source == "veo"
+
+            if payload.source == "zimage":
+                asyncio.create_task(warm_up_zimage())
+
             if is_veo:
                 scenes = get_scenes_count(duration)
                 video_type = "veo"

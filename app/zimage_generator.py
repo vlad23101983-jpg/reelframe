@@ -145,62 +145,26 @@ def _generate_image_bytes_sync(prompt: str, width: int = 720, height: int = 1280
     raise TimeoutError(f"RunPod не ответил за {MAX_WAIT_SECONDS} сек")
 
 
-async def generate_zimage_clip(prompt: str, output_clip_path: str, duration: float = 3.75, motion_style_index: int = 0) -> str:
+async def warm_up():
     """
-    1. Генерирует картинку 9:16 через RunPod Serverless (Z-Image-Turbo).
-    2. Анимирует кадр (тот же ZoomPan-эффект, что и у остальных источников).
-    Если RunPod недоступен — бросает исключение (без автоматического fallback
-    на Gemini, чтобы ошибка была явной во время тестирования).
+    'Холостой' запрос на маленькую картинку — единственная цель: разбудить
+    воркер RunPod заранее, пока идёт генерация сценария/озвучки, чтобы
+    реальная генерация кадров позже не упиралась в холодный старт.
+    Результат никуда не используется и не попадает в видео.
+    Ошибки специально проглатываются — это только оптимизация скорости,
+    а не обязательный шаг: если прогрев не удастся, конвейер продолжит
+    работать как обычно (первая реальная картинка сама прогреет воркер).
     """
-    img_path = output_clip_path.replace(".mp4", ".png")
-
-    image_bytes = await asyncio.to_thread(_generate_image_bytes_sync, prompt, 720, 1280)
-    with open(img_path, "wb") as f:
-        f.write(image_bytes)
-
-    total_frames = int(duration * 25)
-    target_total_zoom = 0.12
-    zoom_increment = target_total_zoom / total_frames if total_frames > 0 else 0.0015
-    zoom_expr = f"min(zoom+{zoom_increment:.6f},1.15)"
-
-    motion_styles = [
-        {"x": "iw/2-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
-        {"x": f"(iw*0.12)+(iw*0.40)*(on/{total_frames})-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
-        {"x": f"(iw*0.52)-(iw*0.40)*(on/{total_frames})-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
-        {"x": "iw/2-(iw/zoom/2)", "y": f"(ih*0.12)+(ih*0.30)*(on/{total_frames})-(ih/zoom/2)"},
-    ]
-    style = motion_styles[motion_style_index % len(motion_styles)]
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-loop", "1", "-i", img_path,
-        "-vf", f"scale=1080:1920,setsar=1,zoompan=z='{zoom_expr}':x='{style['x']}':y='{style['y']}':d={total_frames}:s=1080x1920:fps=25,setpts=PTS-STARTPTS",
-        "-c:v", "libx264", "-preset", "ultrafast",
-        "-t", str(duration), "-pix_fmt", "yuv420p",
-        output_clip_path,
-    ]
-
-    process = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
-    )
-    await process.communicate()
-
-    if os.path.exists(img_path):
-        try:
-            os.remove(img_path)
-        except Exception:
-            pass
-
-    if not os.path.exists(output_clip_path) or os.path.getsize(output_clip_path) == 0:
-        raise RuntimeError("Не удалось собрать клип из картинки RunPod")
-
-    return output_clip_path
-
+    try:
+        await asyncio.to_thread(_generate_image_bytes_sync, "test", 64, 64)
+        print("[zimage] Прогрев RunPod прошёл успешно", flush=True)
+    except Exception as e:
+        print(f"[zimage] Прогрев RunPod не удался (не критично): {e}", flush=True)
 
 
 async def generate_zimage_clip(prompt: str, output_clip_path: str, duration: float = 3.75, motion_style_index: int = 0) -> str:
     """
-    1. Генерирует картинку 9:16 через собственный RunPod (Z-Image-Turbo).
+    1. Генерирует картинку 9:16 через RunPod Serverless (Z-Image-Turbo).
     2. Анимирует кадр (тот же ZoomPan-эффект, что и у остальных источников).
     Если RunPod недоступен — бросает исключение (без автоматического fallback
     на Gemini, чтобы ошибка была явной во время тестирования).
