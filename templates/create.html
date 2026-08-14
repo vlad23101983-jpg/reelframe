@@ -34,8 +34,8 @@
           <div class="opt-desc">Живое видео от Google — настоящее движение в кадре</div>
         </div>
         <div class="opt" data-src="zimage" onclick="pick(this,'source')">
-          <div class="opt-top"><span class="opt-name">ИИ-картинки (тест)</span><span class="opt-price mono">от 80 ₽</span></div>
-          <div class="opt-desc">Экспериментальный источник картинок — тестовый режим</div>
+          <div class="opt-top"><span class="opt-name">Kinom 1.7</span><span class="opt-price mono">от 50 ₽</span></div>
+          <div class="opt-desc">Собственная модель Kinomotor — первая генерация может занять до 5 минут</div>
         </div>
       </div>
     </div>
@@ -153,10 +153,10 @@ const PRICES = {
   ai:     {10:80,  15:120, 20:160},
   upload: {10:40,  15:50,  20:60},
   veo:    {10:180, 15:240, 20:280},
-  zimage: {10:80,  15:120, 20:160}
+  zimage: {10:50,  15:70,  20:100}
 };
 const PHOTO_RANGE = {10:[3,5], 15:[4,7], 20:[5,8]};
-const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', veo:'Veo', zimage:'ИИ-картинки (тест)'};
+const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', veo:'Veo', zimage:'Kinom 1.7'};
 
 const st = {source:'ai', duration:'15', voice:'v_artem', voiceTitle:'Артём',
             music:'m_energetic', musicTitle:'Энергичная', hook:true, topic:'',
@@ -231,13 +231,17 @@ function sync(){
 
 async function startGen(){
   const s = document.getElementById('summary');
+  const kinomNote = st.source === 'zimage'
+    ? `<p style="font-size:11.5px; color:var(--muted); margin:10px 0 0;">Kinom 1.7 — своя модель, первый запуск может занять до 5 минут, дальше быстрее</p>`
+    : '';
   s.innerHTML = `<h3>ГЕНЕРАЦИЯ</h3>
     <div class="progress-list">
       <div class="prow active" id="p1"><span class="pdot">1</span> Пишем сценарий</div>
       <div class="prow" id="p2"><span class="pdot">2</span> Генерируем озвучку</div>
       <div class="prow" id="p3"><span class="pdot">3</span> Создаём кадры</div>
       <div class="prow" id="p4"><span class="pdot">4</span> Собираем видео</div>
-    </div>`;
+    </div>
+    ${kinomNote}`;
 
   try{
     if(st.source === 'upload'){
