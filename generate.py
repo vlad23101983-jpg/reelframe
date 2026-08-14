@@ -92,7 +92,11 @@ async def api_status(task_id: str):
 
 
 @router.post("/upload")
-async def api_upload(files: list[UploadFile] = File(...)):
+async def api_upload(request: Request, files: list[UploadFile] = File(...)):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "auth_required", "message": "Войдите, чтобы загрузить фото"}, status_code=401)
+
     upload_id = f"upload_{uuid.uuid4().hex[:8]}"
     upload_dir = os.path.join("media", "uploads", upload_id)
     os.makedirs(upload_dir, exist_ok=True)
