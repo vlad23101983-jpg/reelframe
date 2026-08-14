@@ -159,8 +159,8 @@ def assemble_final_video(
 
         filter_complex_audio = (
             f"{voice_chain};"
-            f"[2:a]volume=0.08[bg_music];"
-            f"[bg_music][v_for_sidechain]sidechaincompress=threshold=0.01:ratio=8:attack=5:release=200[ducked_music];"
+            f"[2:a]volume=0.11[bg_music];"
+            f"[bg_music][v_for_sidechain]sidechaincompress=threshold=0.01:ratio=5:attack=5:release=200:makeup=2[ducked_music];"
             f"[v_for_mix][ducked_music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mixed];"
             f"[mixed]loudnorm=I=-11.0:TP=-0.5:LRA=15[aout]"
         )
