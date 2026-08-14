@@ -33,6 +33,10 @@
           <div class="opt-top"><span class="opt-name">Veo</span><span class="opt-price mono">от 180 ₽</span></div>
           <div class="opt-desc">Живое видео от Google — настоящее движение в кадре</div>
         </div>
+        <div class="opt" data-src="zimage" onclick="pick(this,'source')">
+          <div class="opt-top"><span class="opt-name">ИИ-картинки (тест)</span><span class="opt-price mono">от 80 ₽</span></div>
+          <div class="opt-desc">Экспериментальный источник картинок — тестовый режим</div>
+        </div>
       </div>
     </div>
 
@@ -148,10 +152,11 @@
 const PRICES = {
   ai:     {10:80,  15:120, 20:160},
   upload: {10:40,  15:50,  20:60},
-  veo:    {10:180, 15:240, 20:280}
+  veo:    {10:180, 15:240, 20:280},
+  zimage: {10:80,  15:120, 20:160}
 };
 const PHOTO_RANGE = {10:[3,5], 15:[4,7], 20:[5,8]};
-const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', veo:'Veo'};
+const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', veo:'Veo', zimage:'ИИ-картинки (тест)'};
 
 const st = {source:'ai', duration:'15', voice:'v_artem', voiceTitle:'Артём',
             music:'m_energetic', musicTitle:'Энергичная', hook:true, topic:'',

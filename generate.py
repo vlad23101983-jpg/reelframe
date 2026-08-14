@@ -21,6 +21,7 @@ from auth import get_current_user
 from app.config import VOICE_PRESETS
 from app.script_generator import get_video_script
 from app.image_generator import generate_imagen_clip
+from app.zimage_generator import generate_zimage_clip
 from app.photo_processor import prepare_user_photo
 from app.veo_generator import generate_veo_clips, get_scenes_count
 from app.assembler import assemble_final_video
@@ -36,6 +37,7 @@ PRICES = {
     "ai":     {10: 80,  15: 120, 20: 160},
     "upload": {10: 40,  15: 50,  20: 60},
     "veo":    {10: 180, 15: 240, 20: 280},
+    "zimage": {10: 80,  15: 120, 20: 160},  # экспериментальный источник — свой RunPod (Z-Image-Turbo)
 }
 
 PHOTO_RANGE = {10: (3, 5), 15: (4, 7), 20: (5, 8)}
@@ -211,6 +213,20 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
                         motion_style_index=i
                     )
                     for i, (photo, out_p) in enumerate(zip(photo_files, video_files))
+                ]
+            elif payload.source == "zimage":
+                shots_count = len(keywords)
+                clip_duration = float(duration) / float(shots_count)
+                video_files = [os.path.join(work_dir, f"vid_{i}.mp4") for i in range(shots_count)]
+
+                generation_tasks = [
+                    generate_zimage_clip(
+                        prompt=kw,
+                        output_clip_path=out_p,
+                        duration=clip_duration,
+                        motion_style_index=i
+                    )
+                    for i, (kw, out_p) in enumerate(zip(keywords, video_files))
                 ]
             else:
                 shots_count = len(keywords)
