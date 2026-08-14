@@ -1,22 +1,24 @@
 """
 Kinomotor — app/zimage_generator.py
-Генерация кадров через собственный RunPod (Z-Image-Turbo, ComfyUI API).
+Генерация кадров через RunPod Serverless (Z-Image-Turbo, worker-comfyui).
 Экспериментальный источник — работает независимо от Gemini/Veo, чтобы
 ничего не задеть в уже проверенных сценариях.
 
 Требует в .env:
-    RUNPOD_COMFYUI_URL=https://<pod-id>-8188.proxy.runpod.net
-(без слэша на конце; актуальный адрес виден на странице пода в RunPod)
+    RUNPOD_API_KEY=rpa_...
+    RUNPOD_ZIMAGE_ENDPOINT_ID=k5nnrpg1qnny92
 """
 
 import os
 import time
-import uuid
+import base64
 import random
 import asyncio
 import requests
 
-RUNPOD_COMFYUI_URL = os.getenv("RUNPOD_COMFYUI_URL", "").rstrip("/")
+RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
+RUNPOD_ZIMAGE_ENDPOINT_ID = os.getenv("RUNPOD_ZIMAGE_ENDPOINT_ID", "")
+RUNPOD_BASE_URL = "https://api.runpod.ai/v2"
 
 POLL_INTERVAL_SECONDS = 2
 MAX_WAIT_SECONDS = 120
@@ -88,50 +90,112 @@ def _build_workflow(prompt: str, width: int, height: int) -> dict:
     return workflow
 
 
+def _extract_image_bytes(output: dict) -> bytes:
+    images = output.get("images") or []
+    if not images:
+        raise RuntimeError(f"RunPod не вернул изображений в output: {output}")
+    data = images[0]["data"]
+    return base64.b64decode(data)
+
+
 def _generate_image_bytes_sync(prompt: str, width: int = 720, height: int = 1280) -> bytes:
-    """Отправляет workflow в ComfyUI на RunPod, ждёт результат, скачивает картинку."""
-    if not RUNPOD_COMFYUI_URL:
-        raise RuntimeError("RUNPOD_COMFYUI_URL не задан в .env")
+    """Отправляет workflow на RunPod Serverless endpoint и возвращает готовую картинку."""
+    if not RUNPOD_API_KEY or not RUNPOD_ZIMAGE_ENDPOINT_ID:
+        raise RuntimeError("RUNPOD_API_KEY или RUNPOD_ZIMAGE_ENDPOINT_ID не заданы в .env")
 
-    client_id = uuid.uuid4().hex
     workflow = _build_workflow(prompt, width, height)
+    headers = {
+        "Authorization": f"Bearer {RUNPOD_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
+    # runsync ждёт до ~90 сек сам; если не успел (холодный старт) — переходим на polling.
     resp = requests.post(
-        f"{RUNPOD_COMFYUI_URL}/prompt",
-        json={"prompt": workflow, "client_id": client_id},
-        timeout=20,
+        f"{RUNPOD_BASE_URL}/{RUNPOD_ZIMAGE_ENDPOINT_ID}/runsync",
+        headers=headers,
+        json={"input": {"workflow": workflow}},
+        timeout=100,
     )
     resp.raise_for_status()
-    prompt_id = resp.json().get("prompt_id")
-    if not prompt_id:
-        raise RuntimeError("ComfyUI не вернул prompt_id")
+    result = resp.json()
+
+    if result.get("status") == "COMPLETED":
+        return _extract_image_bytes(result.get("output", {}))
+
+    job_id = result.get("id")
+    if not job_id:
+        raise RuntimeError(f"RunPod не вернул id задачи: {result}")
 
     start_time = time.time()
     while time.time() - start_time < MAX_WAIT_SECONDS:
-        hist_resp = requests.get(f"{RUNPOD_COMFYUI_URL}/history/{prompt_id}", timeout=15)
-        hist_resp.raise_for_status()
-        history = hist_resp.json()
-
-        if prompt_id in history:
-            outputs = history[prompt_id].get("outputs", {})
-            images = outputs.get("9", {}).get("images", [])
-            if images:
-                image_info = images[0]
-                view_resp = requests.get(
-                    f"{RUNPOD_COMFYUI_URL}/view",
-                    params={
-                        "filename": image_info["filename"],
-                        "subfolder": image_info.get("subfolder", ""),
-                        "type": image_info.get("type", "output"),
-                    },
-                    timeout=30,
-                )
-                view_resp.raise_for_status()
-                return view_resp.content
-
         time.sleep(POLL_INTERVAL_SECONDS)
+        status_resp = requests.get(
+            f"{RUNPOD_BASE_URL}/{RUNPOD_ZIMAGE_ENDPOINT_ID}/status/{job_id}",
+            headers=headers,
+            timeout=15,
+        )
+        status_resp.raise_for_status()
+        status_result = status_resp.json()
+
+        if status_result.get("status") == "COMPLETED":
+            return _extract_image_bytes(status_result.get("output", {}))
+        if status_result.get("status") == "FAILED":
+            raise RuntimeError(f"RunPod: генерация не удалась — {status_result.get('error')}")
 
     raise TimeoutError(f"RunPod не ответил за {MAX_WAIT_SECONDS} сек")
+
+
+async def generate_zimage_clip(prompt: str, output_clip_path: str, duration: float = 3.75, motion_style_index: int = 0) -> str:
+    """
+    1. Генерирует картинку 9:16 через RunPod Serverless (Z-Image-Turbo).
+    2. Анимирует кадр (тот же ZoomPan-эффект, что и у остальных источников).
+    Если RunPod недоступен — бросает исключение (без автоматического fallback
+    на Gemini, чтобы ошибка была явной во время тестирования).
+    """
+    img_path = output_clip_path.replace(".mp4", ".png")
+
+    image_bytes = await asyncio.to_thread(_generate_image_bytes_sync, prompt, 720, 1280)
+    with open(img_path, "wb") as f:
+        f.write(image_bytes)
+
+    total_frames = int(duration * 25)
+    target_total_zoom = 0.12
+    zoom_increment = target_total_zoom / total_frames if total_frames > 0 else 0.0015
+    zoom_expr = f"min(zoom+{zoom_increment:.6f},1.15)"
+
+    motion_styles = [
+        {"x": "iw/2-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
+        {"x": f"(iw*0.12)+(iw*0.40)*(on/{total_frames})-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
+        {"x": f"(iw*0.52)-(iw*0.40)*(on/{total_frames})-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
+        {"x": "iw/2-(iw/zoom/2)", "y": f"(ih*0.12)+(ih*0.30)*(on/{total_frames})-(ih/zoom/2)"},
+    ]
+    style = motion_styles[motion_style_index % len(motion_styles)]
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1", "-i", img_path,
+        "-vf", f"scale=1080:1920,setsar=1,zoompan=z='{zoom_expr}':x='{style['x']}':y='{style['y']}':d={total_frames}:s=1080x1920:fps=25,setpts=PTS-STARTPTS",
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-t", str(duration), "-pix_fmt", "yuv420p",
+        output_clip_path,
+    ]
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
+    )
+    await process.communicate()
+
+    if os.path.exists(img_path):
+        try:
+            os.remove(img_path)
+        except Exception:
+            pass
+
+    if not os.path.exists(output_clip_path) or os.path.getsize(output_clip_path) == 0:
+        raise RuntimeError("Не удалось собрать клип из картинки RunPod")
+
+    return output_clip_path
+
 
 
 async def generate_zimage_clip(prompt: str, output_clip_path: str, duration: float = 3.75, motion_style_index: int = 0) -> str:
