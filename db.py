@@ -24,6 +24,7 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  # доступ к колонкам по имени: row["email"]
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")  # снижает блокировки при параллельных запросах
     return conn
 
 
