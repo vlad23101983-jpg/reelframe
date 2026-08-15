@@ -90,7 +90,7 @@
 
     <div class="field">
       <label class="field-label">Тема ролика</label>
-      <div class="field-hint" id="topicHint">Чем подробнее опишете — тем качественнее видео. Укажите детали: как выглядят люди (реалистично или как мультфильм), место действия, природа — вода, песок, лес</div>
+      <div class="field-hint" id="topicHint">Чем подробнее опишете — тем качественнее видео. Укажите детали для картинки: как выглядят люди (реалистично или как мультфильм), место действия, природа — вода, песок, лес. А также о чём должен говорить диктор — по этой теме ИИ напишет текст озвучки</div>
       <textarea id="topic" placeholder="Например: девушка идёт по сосновому лесу на закате, реалистичный стиль, тёплый золотой свет, крупные планы лица" oninput="sync()"></textarea>
       <div class="char-count"><span id="topicLen">0</span> символов</div>
     </div>
@@ -217,8 +217,8 @@ function pick(el, group){
     st.language = el.dataset.lang;
     const hint = document.getElementById('topicHint');
     hint.textContent = st.language === 'en'
-      ? 'The more detail, the better the video. Describe people (realistic or cartoon style), the setting, nature — water, sand, forest. You can write in Russian — AI will translate.'
-      : 'Чем подробнее опишете — тем качественнее видео. Укажите детали: как выглядят люди (реалистично или как мультфильм), место действия, природа — вода, песок, лес';
+      ? 'The more detail, the better the video. Describe people (realistic or cartoon style), the setting, nature — water, sand, forest. Also say what the narrator should talk about — AI writes the voiceover from this. You can write in Russian — AI will translate.'
+      : 'Чем подробнее опишете — тем качественнее видео. Укажите детали для картинки: как выглядят люди (реалистично или как мультфильм), место действия, природа — вода, песок, лес. А также о чём должен говорить диктор — по этой теме ИИ напишет текст озвучки';
 
     const ruGrid = document.getElementById('voiceGridRu');
     const enGrid = document.getElementById('voiceGridEn');
