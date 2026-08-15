@@ -87,6 +87,11 @@ VOICE_PRESETS = {
             "description": "Sharp, confident, witty — documentaries, explainers, podcasts",
             "voice_id": "dSByRdUbTGloB7TFA1qD",
         },
+        "v_laura": {
+            "title": "Laura",
+            "description": "Wise, mature, captivating — news, media, top-story narration",
+            "voice_id": "GZ4PpFJV8ikEGUtBrjK7",
+        },
     },
 }
 
