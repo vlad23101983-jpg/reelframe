@@ -47,6 +47,13 @@ LETTER_SPACING = 0
 # Заглавные — как в демо и как принято в субтитрах коротких видео.
 UPPERCASE = True
 
+# Сколько жёстких пробелов (\h) добавлять к обычному между словами.
+# При обводке в 7 пикселей одного обычного пробела мало: контуры соседних
+# слов почти смыкаются. \h не схлопывается при вёрстке и, в отличие от
+# Spacing, не растягивает буквы внутри слова. 1 — обычное расстояние,
+# 2 — заметно шире, но строка чаще ломается на три.
+WORD_GAP = 1
+
 MARGIN_BOTTOM = 470  # выше интерфейса TikTok/Reels с кнопками и описанием
 MARGIN_SIDE = 100
 
@@ -144,11 +151,15 @@ def build_ass(words, output_path: str, video_width: int = 1080, video_height: in
 
         parts = []
         cursor = start
-        for w in line:
+        gap = "\\h" * WORD_GAP
+        for i, w in enumerate(line):
             # Длительность подсветки — от текущей позиции до конца слова,
             # чтобы паузы между словами не съедали подсветку.
             duration_cs = max(1, int(round((w["end"] - cursor) * 100)))
-            parts.append(f"{{\\k{duration_cs}}}{_escape(w['word'])}")
+            # Жёсткий пробел ставится внутри сегмента слова, а не между ними,
+            # иначе он попал бы в подсветку следующего слова.
+            tail = gap if i < len(line) - 1 else ""
+            parts.append(f"{{\\k{duration_cs}}}{_escape(w['word'])}{tail}")
             cursor = w["end"]
 
         text = " ".join(parts)
