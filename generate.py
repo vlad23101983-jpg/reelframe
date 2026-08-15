@@ -121,9 +121,13 @@ async def api_upload(request: Request, files: list[UploadFile] = File(...)):
     return {"upload_id": upload_id, "count": saved}
 
 
+_music_rotation_index = {}  # style -> индекс последнего использованного трека
+
+
 def pick_music_track(music_key: str):
     """
-    Берёт случайный трек из библиотеки media/music.
+    Берёт следующий трек ПО КРУГУ из библиотеки media/music (не случайно —
+    так треки не повторяются подряд). После последнего трека снова начинает с первого.
     Файлы называются по стилю: calm_1.mp3, energetic_1.mp3, business_1.mp3.
     Возвращает None, если музыка не нужна или треков для стиля нет.
     """
@@ -131,13 +135,15 @@ def pick_music_track(music_key: str):
         return None
 
     style = music_key.replace("m_", "")
-    candidates = glob.glob(os.path.join("media", "music", f"{style}_*.mp3"))
+    candidates = sorted(glob.glob(os.path.join("media", "music", f"{style}_*.mp3")))
 
     if not candidates:
         print(f"Нет треков для стиля '{style}' — ролик будет без музыки", flush=True)
         return None
 
-    track = random.choice(candidates)
+    next_index = (_music_rotation_index.get(style, -1) + 1) % len(candidates)
+    _music_rotation_index[style] = next_index
+    track = candidates[next_index]
     print(f"Музыка: {os.path.basename(track)}", flush=True)
     return track
 
