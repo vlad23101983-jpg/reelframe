@@ -5,6 +5,8 @@ import textwrap
 from pydub import AudioSegment
 from pydub.effects import compress_dynamic_range, normalize
 
+from app.subtitles import rescale_word_timings, build_ass, ass_filter
+
 
 def get_file_duration(file_path: str) -> float:
     """Получает точную длительность медиафайла в секундах."""
@@ -70,6 +72,15 @@ def process_smart_audio(
     ]
     subprocess.run(cmd_tempo, capture_output=True, check=True)
 
+    # Возвращаем параметры преобразования — по ним пересчитываются тайминги слов
+    # для субтитров. Без этого субтитры разъедутся с речью: ускорение в 1.25x
+    # уводит конец ролика на 2.5 секунды.
+    return {
+        "original_duration": get_file_duration(input_audio),
+        "clean_duration": clean_dur,
+        "speed_ratio": float(f"{speed_ratio:.2f}"),  # ровно то, что ушло в atempo
+    }
+
 
 def studio_voice_processing(input_wav: str, output_wav: str):
     """Студийная компрессия и максимальная нормализация голоса через Pydub."""
@@ -96,6 +107,7 @@ def assemble_final_video(
     bg_music_path: str = None,
     hook_text: str = "",
     target_duration: float = 10.0,
+    word_timings: list = None,
 ):
     temp_concat = os.path.join(work_dir, "temp_concat.mp4")
     processed_audio = os.path.join(work_dir, "temp_processed_voice.wav")
@@ -133,7 +145,7 @@ def assemble_final_video(
     subprocess.run(concat_cmd, check=True)
 
     # 2. Подготовка и студийная обработка речи
-    process_smart_audio(
+    audio_transform = process_smart_audio(
         audio_file,
         processed_audio,
         target_duration=target_duration,
@@ -192,6 +204,28 @@ def assemble_final_video(
             f"box=1:boxcolor=black@0.7:boxborderw=16:line_spacing=10:enable='between(t,0,3.5)'"
         )
         vf_filters.append(drawtext_cmd)
+
+    # 4b. Караоке-субтитры
+    # Тайминги от ElevenLabs относятся к исходной озвучке, а дорожка успела
+    # пройти через silenceremove и atempo — пересчитываем под финальное аудио.
+    if word_timings:
+        try:
+            rescaled = rescale_word_timings(word_timings, audio_transform)
+            if rescaled:
+                ass_path = os.path.join(work_dir, "subtitles.ass")
+                if build_ass(rescaled, ass_path):
+                    subtitle_filter = ass_filter(ass_path)
+                    if subtitle_filter:
+                        vf_filters.append(subtitle_filter)
+                        print(
+                            f"[субтитры] Наложены: строк={len(rescaled) // 4 + 1}, "
+                            f"последнее слово в {rescaled[-1]['end']:.2f}s "
+                            f"(длина речи {voice_dur:.2f}s)",
+                            flush=True,
+                        )
+        except Exception as e:
+            # Субтитры — украшение. Ролик должен собраться в любом случае.
+            print(f"[субтитры] Не удалось наложить ({e}) — рендерю без них", flush=True)
 
     vf_chain = ",".join(vf_filters) if vf_filters else "null"
 

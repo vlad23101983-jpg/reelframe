@@ -65,6 +65,7 @@ class GenerateRequest(BaseModel):
     voice: str = "v_artem"
     music: str = "m_energetic"
     hook: bool = True
+    subtitles: bool = True
     topic: str = ""
     upload_id: str = ""
     language: str = "ru"
@@ -304,6 +305,7 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
                 bg_music_path=music_file_path,
                 hook_text=hook_text if payload.hook else "",
                 target_duration=float(duration),
+                word_timings=word_timings if payload.subtitles else None,
             )
             public_name = f"{task_id}.mp4"
             public_path = os.path.join("media", public_name)

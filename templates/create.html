@@ -178,6 +178,16 @@
         <div class="switch on" id="hookSwitch" onclick="toggleHook()"></div>
       </div>
     </div>
+
+    <div class="field">
+      <div class="toggle-row">
+        <div>
+          <div class="field-label" style="margin-bottom:3px;">Субтитры</div>
+          <div style="font-size:12.5px; color:var(--muted);">Слова подсвечиваются по ходу озвучки — ролик понятен без звука</div>
+        </div>
+        <div class="switch on" id="subsSwitch" onclick="toggleSubs()"></div>
+      </div>
+    </div>
   </div>
 
   <aside class="summary" id="summary">
@@ -187,6 +197,7 @@
     <div class="srow"><span class="k">Голос</span><span class="v" id="sVoice">Артём</span></div>
     <div class="srow"><span class="k">Музыка</span><span class="v" id="sMusic">Энергичная</span></div>
     <div class="srow"><span class="k">Хук</span><span class="v" id="sHook">Да</span></div>
+    <div class="srow"><span class="k">Субтитры</span><span class="v" id="sSubs">Да</span></div>
     <div class="stotal"><span class="k">Итого</span><span class="v mono" id="sPrice">120 ₽</span></div>
     <button class="btn btn-primary" id="createBtn" onclick="startGen()" disabled style="width:100%;">Создать видео</button>
     <div class="balance-note" id="balanceNote">Спишется с баланса</div>
@@ -206,7 +217,7 @@ const PHOTO_RANGE = {10:[3,5], 15:[4,7], 20:[5,8]};
 const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', veo:'Veo', zimage:'Kinom 1.7'};
 
 const st = {source:'ai', duration:'15', voice:'v_artem', voiceTitle:'Артём',
-            music:'m_energetic', musicTitle:'Энергичная', hook:true, topic:'',
+            music:'m_energetic', musicTitle:'Энергичная', hook:true, subtitles:true, topic:'',
             files:0, upload_id:'', language:'ru'};
 
 function pick(el, group){
@@ -242,6 +253,12 @@ function pick(el, group){
 function toggleHook(){
   st.hook = !st.hook;
   document.getElementById('hookSwitch').classList.toggle('on', st.hook);
+  render();
+}
+
+function toggleSubs(){
+  st.subtitles = !st.subtitles;
+  document.getElementById('subsSwitch').classList.toggle('on', st.subtitles);
   sync();
 }
 
@@ -287,6 +304,7 @@ function sync(){
   document.getElementById('sVoice').textContent = st.voiceTitle;
   document.getElementById('sMusic').textContent = st.musicTitle;
   document.getElementById('sHook').textContent = st.hook ? 'Да' : 'Нет';
+  document.getElementById('sSubs').textContent = st.subtitles ? 'Да' : 'Нет';
 
   const price = PRICES[st.source][st.duration];
   document.getElementById('sPrice').textContent = price + ' ₽';
