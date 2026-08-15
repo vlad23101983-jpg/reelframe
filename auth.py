@@ -65,12 +65,12 @@ async def request_code(body: RequestCodeBody):
     finally:
         db.close()
 
-    print(f"[DEV] Код для {body.email}: {code}", flush=True)
-
     try:
         send_code_email(body.email, code)
     except Exception as e:
-        print(f"Письмо не доставлено на {body.email} (код всё равно рабочий): {e}", flush=True)
+        # Сам код в лог не пишем: journalctl доступен шире, чем почтовый ящик,
+        # а вход на сайт устроен только по коду — в логе он равносилен паролю.
+        print(f"Письмо не доставлено на {body.email}: {e}", flush=True)
 
     return {"ok": True}
 
@@ -126,6 +126,7 @@ async def verify_code(body: VerifyCodeBody, response: Response):
         key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
+        secure=True,  # кука уходит только по https — сайт работает только по нему
         max_age=SESSION_TTL_DAYS * 24 * 3600,
         samesite="lax",
     )
