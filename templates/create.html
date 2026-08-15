@@ -92,7 +92,7 @@
 
     <div class="field">
       <label class="field-label">Голос диктора</label>
-      <div class="voice-grid">
+      <div class="voice-grid" id="voiceGridRu">
         <div class="voice-opt on" data-voice="v_artem" data-title="Артём" onclick="pick(this,'voice')">
           <div class="voice-name">Артём</div><div class="voice-desc">Уверенный мужской — бизнес, обзоры, мотивация</div>
         </div>
@@ -113,6 +113,20 @@
         </div>
         <div class="voice-opt" data-voice="v_ekaterina" data-title="Екатерина" onclick="pick(this,'voice')">
           <div class="voice-name">Екатерина</div><div class="voice-desc">Мягкий женский — сказки, медитации, дети</div>
+        </div>
+      </div>
+      <div class="voice-grid" id="voiceGridEn" style="display:none;">
+        <div class="voice-opt" data-voice="v_adam" data-title="Adam" onclick="pick(this,'voice')">
+          <div class="voice-name">Adam</div><div class="voice-desc">Confident male — business, reviews, motivation</div>
+        </div>
+        <div class="voice-opt" data-voice="v_rachel" data-title="Rachel" onclick="pick(this,'voice')">
+          <div class="voice-name">Rachel</div><div class="voice-desc">Warm female — stories, blogs, philosophy</div>
+        </div>
+        <div class="voice-opt" data-voice="v_antoni" data-title="Antoni" onclick="pick(this,'voice')">
+          <div class="voice-name">Antoni</div><div class="voice-desc">Well-rounded male — universal for social media</div>
+        </div>
+        <div class="voice-opt" data-voice="v_bella" data-title="Bella" onclick="pick(this,'voice')">
+          <div class="voice-name">Bella</div><div class="voice-desc">Soft female — calm, narration, gentle content</div>
         </div>
       </div>
     </div>
@@ -188,6 +202,19 @@ function pick(el, group){
     hint.textContent = st.language === 'en'
       ? 'Можно описать тему по-русски — ИИ сам переведёт и сделает видео на английском'
       : 'Опишите, о чём видео — сценарий, хук и хештеги напишутся сами';
+
+    const ruGrid = document.getElementById('voiceGridRu');
+    const enGrid = document.getElementById('voiceGridEn');
+    const activeGrid = st.language === 'en' ? enGrid : ruGrid;
+    const inactiveGrid = st.language === 'en' ? ruGrid : enGrid;
+    inactiveGrid.style.display = 'none';
+    activeGrid.style.display = 'grid';
+
+    activeGrid.querySelectorAll('.voice-opt').forEach(o=>o.classList.remove('on'));
+    const firstVoice = activeGrid.querySelector('.voice-opt');
+    firstVoice.classList.add('on');
+    st.voice = firstVoice.dataset.voice;
+    st.voiceTitle = firstVoice.dataset.title;
   }
   sync();
 }

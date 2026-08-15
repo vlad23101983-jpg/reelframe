@@ -1,43 +1,77 @@
 """
 Пресеты голосов и музыки для Kinomotor.
 Ключи должны совпадать с теми, что отправляет фронтенд (create.html).
+
+VOICE_PRESETS разбит по языку ("ru" / "en") — какой набор голосов показывать
+и использовать, зависит от выбранного языка озвучки. Это нужно, потому что
+голос с русским акцентом звучит с этим же акцентом и на английском —
+для нормальной английской озвучки нужны отдельные, англоязычные голоса.
+
+ВАЖНО про en-голоса ниже: voice_id — это стандартные готовые голоса,
+доступные в любом аккаунте ElevenLabs "из коробки". Замените на свои,
+если в библиотеке голосов найдёте варианты, которые нравятся больше —
+просто скопируйте нужный voice_id из ElevenLabs (Voice Library).
 """
 
 VOICE_PRESETS = {
-    "v_artem": {
-        "title": "Артём",
-        "description": "Уверенный мужской — бизнес, обзоры, мотивация",
-        "voice_id": "rQOBu7YxCDxGiFdTm28w",
+    "ru": {
+        "v_artem": {
+            "title": "Артём",
+            "description": "Уверенный мужской — бизнес, обзоры, мотивация",
+            "voice_id": "rQOBu7YxCDxGiFdTm28w",
+        },
+        "v_maria": {
+            "title": "Мария",
+            "description": "Тёплый женский — истории, блоги, философия",
+            "voice_id": "t6lBrEl93uCiLR1Lgm8v",
+        },
+        "v_nikolay": {
+            "title": "Николай",
+            "description": "Мужской средних лет — универсальный для соцсетей",
+            "voice_id": "3EuKHIEZbSzrHGNmdYsx",
+        },
+        "v_mikhail": {
+            "title": "Михаил",
+            "description": "Спокойный без пафоса — история, наука",
+            "voice_id": "a2cWmGM4AUuNsHwInFjF",
+        },
+        "v_viktoria": {
+            "title": "Виктория",
+            "description": "Харизматичный женский — реклама, сторителлинг",
+            "voice_id": "FZGeNF7bE3syeQOynDKC",
+        },
+        "v_pavel": {
+            "title": "Павел",
+            "description": "Молодой мужской — живой разговорный стиль",
+            "voice_id": "O9f5Hqzk8FPymrA0cAZq",
+        },
+        "v_ekaterina": {
+            "title": "Екатерина",
+            "description": "Мягкий женский — сказки, медитации, дети",
+            "voice_id": "GN4wbsbejSnGSa1AzjH5",
+        },
     },
-    "v_maria": {
-        "title": "Мария",
-        "description": "Тёплый женский — истории, блоги, философия",
-        "voice_id": "t6lBrEl93uCiLR1Lgm8v",
-    },
-    "v_nikolay": {
-        "title": "Николай",
-        "description": "Мужской средних лет — универсальный для соцсетей",
-        "voice_id": "3EuKHIEZbSzrHGNmdYsx",
-    },
-    "v_mikhail": {
-        "title": "Михаил",
-        "description": "Спокойный без пафоса — история, наука",
-        "voice_id": "a2cWmGM4AUuNsHwInFjF",
-    },
-    "v_viktoria": {
-        "title": "Виктория",
-        "description": "Харизматичный женский — реклама, сторителлинг",
-        "voice_id": "FZGeNF7bE3syeQOynDKC",
-    },
-    "v_pavel": {
-        "title": "Павел",
-        "description": "Молодой мужской — живой разговорный стиль",
-        "voice_id": "O9f5Hqzk8FPymrA0cAZq",
-    },
-    "v_ekaterina": {
-        "title": "Екатерина",
-        "description": "Мягкий женский — сказки, медитации, дети",
-        "voice_id": "GN4wbsbejSnGSa1AzjH5",
+    "en": {
+        "v_adam": {
+            "title": "Adam",
+            "description": "Confident male — business, reviews, motivation",
+            "voice_id": "pNInz6obpgDQGcFmaJgB",
+        },
+        "v_rachel": {
+            "title": "Rachel",
+            "description": "Warm female — stories, blogs, philosophy",
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",
+        },
+        "v_antoni": {
+            "title": "Antoni",
+            "description": "Well-rounded male — universal for social media",
+            "voice_id": "ErXwobaYiN019PkySvjV",
+        },
+        "v_bella": {
+            "title": "Bella",
+            "description": "Soft female — calm, narration, gentle content",
+            "voice_id": "EXAVITQu4vr4xnSDxMaL",
+        },
     },
 }
 

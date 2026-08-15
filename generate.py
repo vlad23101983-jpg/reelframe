@@ -184,7 +184,8 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
             music_file_path = pick_music_track(payload.music)
 
             TASKS[task_id].update(step=2)
-            voice_preset = VOICE_PRESETS.get(payload.voice, list(VOICE_PRESETS.values())[0])
+            lang_voices = VOICE_PRESETS.get(payload.language, VOICE_PRESETS["ru"])
+            voice_preset = lang_voices.get(payload.voice, list(lang_voices.values())[0])
             await asyncio.to_thread(
                 generate_speech, voice_text, audio_file_path,
                 voice_preset["voice_id"], "eleven_v3"
