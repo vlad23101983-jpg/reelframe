@@ -78,6 +78,19 @@
     </div>
 
     <div class="field">
+      <label class="field-label">Язык озвучки</label>
+      <div class="field-hint">Текст, заголовок и описание будут на этом языке</div>
+      <div class="source-grid">
+        <div class="opt on" data-lang="ru" onclick="pick(this,'language')">
+          <div class="opt-top"><span class="opt-name">Русский</span></div>
+        </div>
+        <div class="opt" data-lang="en" onclick="pick(this,'language')">
+          <div class="opt-top"><span class="opt-name">English</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
       <label class="field-label">Голос диктора</label>
       <div class="voice-grid">
         <div class="voice-opt on" data-voice="v_artem" data-title="Артём" onclick="pick(this,'voice')">
@@ -160,7 +173,7 @@ const SRC_TITLE = {ai:'Картинки от ИИ', upload:'Мои фото', ve
 
 const st = {source:'ai', duration:'15', voice:'v_artem', voiceTitle:'Артём',
             music:'m_energetic', musicTitle:'Энергичная', hook:true, topic:'',
-            files:0, upload_id:''};
+            files:0, upload_id:'', language:'ru'};
 
 function pick(el, group){
   el.parentElement.querySelectorAll('.opt, .dur-opt, .voice-opt').forEach(o=>o.classList.remove('on'));
@@ -169,6 +182,7 @@ function pick(el, group){
   if(group==='duration') st.duration = el.dataset.dur;
   if(group==='voice'){ st.voice = el.dataset.voice; st.voiceTitle = el.dataset.title; }
   if(group==='music'){ st.music = el.dataset.music; st.musicTitle = el.dataset.title; }
+  if(group==='language') st.language = el.dataset.lang;
   sync();
 }
 

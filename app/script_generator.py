@@ -15,12 +15,16 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
-def get_video_script(topic: str, duration: int, scenes_override: int = None, video_type: str = "images") -> dict:
+def get_video_script(topic: str, duration: int, scenes_override: int = None, video_type: str = "images", language: str = "ru") -> dict:
     """
     Возвращает JSON: hook_text, voice_text, keywords, social_description, hashtags.
 
     ВАЖНО: лимиты символов voice_text подобраны под естественную скорость речи —
     не менять.
+
+    language: "ru" (по умолчанию) или "en" — язык хука, текста диктора, описания
+    и хештегов. Промпты для картинок/видео (keywords) всегда на английском,
+    независимо от языка озвучки — так лучше работают модели генерации изображений.
     """
     if duration <= 10:
         shots_count = 4
@@ -34,6 +38,8 @@ def get_video_script(topic: str, duration: int, scenes_override: int = None, vid
 
     if scenes_override is not None:
         shots_count = scenes_override
+
+    lang_name = {"ru": "РУССКОМ", "en": "АНГЛИЙСКОМ"}.get(language, "РУССКОМ")
 
     if video_type == "veo":
         keywords_instruction = (
@@ -64,15 +70,16 @@ def get_video_script(topic: str, duration: int, scenes_override: int = None, vid
     system_instruction = (
         f"Ты сценарист коротких вирусно-динамичных роликов для Reels/Shorts.\n"
         f"Создай JSON со следующей структурой:\n"
-        f"1. 'hook_text': цепляющий короткий заголовок-хук из 2-4 слов НА РУССКОМ ЗАГЛАВНЫМИ БУКВАМИ.\n"
-        f"2. 'voice_text': текст НА РУССКОМ языке объемом {min_chars}-{max_chars} символов для диктора. Без эмодзи.\n"
+        f"1. 'hook_text': цепляющий короткий заголовок-хук из 2-4 слов НА {lang_name} ЗАГЛАВНЫМИ БУКВАМИ.\n"
+        f"2. 'voice_text': текст НА {lang_name} языке объемом {min_chars}-{max_chars} символов для диктора. Без эмодзи.\n"
         f"{keywords_instruction}"
-        f"4. 'social_description': текст НА РУССКОМ языке объёмом 500-700 символов — готовое SEO-описание "
+        f"4. 'social_description': текст НА {lang_name} языке объёмом 500-700 символов — готовое SEO-описание "
         f"для публикации этого видео в Instagram Reels и YouTube Shorts. Должно ясно объяснять, о чём видео, "
         f"цеплять внимание в первых 1-2 предложениях, содержать релевантные слова по теме для алгоритмов "
         f"соцсетей. Без хештегов внутри этого текста.\n"
-        f"5. 'hashtags': массив ровно из 5 хештегов НА РУССКОМ ЯЗЫКЕ по теме видео, каждый начинается с # "
-        f"(например: '#бизнесидеи', '#мотивация'), без пробелов внутри тега.\n"
+        f"5. 'hashtags': массив ровно из 5 хештегов НА {lang_name} ЯЗЫКЕ по теме видео, каждый начинается с # "
+        f"(например: '#бизнесидеи', '#мотивация' для русского, или '#business', '#motivation' для английского), "
+        f"без пробелов внутри тега.\n"
         f"ВАЖНО: НИКОГДА не используй имена реальных людей, знаменитостей, политиков, публичных персон — "
         f"генератор блокирует такие промпты. Вместо имени описывай обобщённый образ: 'a tech entrepreneur', "
         f"'a business leader', 'a young athlete' и т.д., без узнаваемых черт конкретного человека.\n"

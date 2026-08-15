@@ -56,6 +56,7 @@ class GenerateRequest(BaseModel):
     hook: bool = True
     topic: str = ""
     upload_id: str = ""
+    language: str = "ru"
 
 
 @router.post("/generate")
@@ -165,7 +166,7 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
                 video_type = "images"
 
             script = await asyncio.to_thread(
-                get_video_script, payload.topic, duration, scenes, video_type
+                get_video_script, payload.topic, duration, scenes, video_type, payload.language
             )
 
             voice_text = script["voice_text"]
