@@ -77,6 +77,11 @@ VOICE_PRESETS = {
             "description": "Calm, reassuring, deeply human — wellness, coaching, support",
             "voice_id": "enzbGixeo55iqn1QxbbC",
         },
+        "v_jessica": {
+            "title": "Jessica",
+            "description": "Playful, bright, warm, youthful — conversational content",
+            "voice_id": "r1KmysJdVYZjJCm4mL3b",
+        },
     },
 }
 
