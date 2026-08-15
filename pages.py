@@ -6,11 +6,23 @@ Kinomotor — pages.py
 from fastapi import APIRouter, Request
 import os
 import subprocess
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from datetime import datetime
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.templating import Jinja2Templates
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="templates")
+
+
+SITE_URL = os.getenv("SITE_URL", "https://kinomotor.com").rstrip("/")
+
+# В карту сайта идут только страницы, открытые для индексации. Всё, что
+# закрыто в robots.txt (кабинет, вход, поддержка, админка), сюда попадать
+# не должно — иначе поисковик получает противоречивые указания.
+PUBLIC_PAGES = [
+    {"path": "/", "template": "index.html", "priority": "1.0", "changefreq": "weekly"},
+    {"path": "/create", "template": "create.html", "priority": "0.8", "changefreq": "monthly"},
+]
 
 
 @router.get("/robots.txt", response_class=PlainTextResponse)
@@ -23,7 +35,47 @@ async def robots_txt():
         "Disallow: /support\n"
         "Disallow: /admin\n"
         "Disallow: /api/\n"
+        "\n"
+        f"Sitemap: {SITE_URL}/sitemap.xml\n"
     )
+
+
+@router.get("/sitemap.xml", response_class=Response)
+async def sitemap_xml():
+    """
+    Карта сайта для поисковиков.
+
+    Дата изменения берётся из времени правки шаблона страницы — так она
+    отражает реальные изменения, а не подставляется текущим числом каждый
+    день. Постоянно свежая дата на неизменившейся странице подрывает
+    доверие поисковика к остальным датам в карте.
+    """
+    entries = []
+    for page in PUBLIC_PAGES:
+        lastmod = ""
+        template_path = os.path.join("templates", page["template"])
+        try:
+            mtime = os.path.getmtime(template_path)
+            lastmod = f"    <lastmod>{datetime.utcfromtimestamp(mtime).strftime('%Y-%m-%d')}</lastmod>\n"
+        except OSError:
+            pass
+
+        entries.append(
+            "  <url>\n"
+            f"    <loc>{SITE_URL}{page['path']}</loc>\n"
+            f"{lastmod}"
+            f"    <changefreq>{page['changefreq']}</changefreq>\n"
+            f"    <priority>{page['priority']}</priority>\n"
+            "  </url>"
+        )
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(entries)
+        + "\n</urlset>\n"
+    )
+    return Response(content=xml, media_type="application/xml")
 
 
 @router.get("/", response_class=HTMLResponse)
