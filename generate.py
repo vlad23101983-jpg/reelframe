@@ -4,6 +4,7 @@ Kinomotor — generate.py
 """
 
 import os
+import re
 import uuid
 import glob
 import random
@@ -42,6 +43,16 @@ PRICES = {
 
 PHOTO_RANGE = {10: (3, 5), 15: (4, 7), 20: (5, 8)}
 
+# Единственные длительности, на которые есть тариф. Всё остальное сервер обязан
+# отклонять: цены берутся из PRICES.get(...), и для неизвестной длительности
+# цена посчиталась бы как 0 — то есть ролик сгенерировался бы бесплатно.
+ALLOWED_DURATIONS = (10, 15, 20)
+
+# upload_id подставляется в путь на диске, поэтому принимаем только тот формат,
+# который сами же и выдаём в /api/upload (upload_ + 8 hex-символов). Без этой
+# проверки значение вида "../.." увело бы shutil.rmtree за пределы media/uploads.
+UPLOAD_ID_RE = re.compile(r"^upload_[0-9a-f]{8}$")
+
 MAX_CONCURRENT_GENERATIONS = 2
 generation_semaphore = asyncio.Semaphore(MAX_CONCURRENT_GENERATIONS)
 
@@ -65,7 +76,21 @@ async def api_generate(payload: GenerateRequest, request: Request):
     if not user:
         return JSONResponse({"error": "auth_required", "message": "Войдите, чтобы создать видео"}, status_code=401)
 
-    price = PRICES.get(payload.source, PRICES["ai"]).get(int(payload.duration), 0)
+    if payload.source not in PRICES:
+        return JSONResponse({"error": "invalid_source", "message": "Неизвестный источник кадров"}, status_code=400)
+
+    try:
+        duration = int(payload.duration)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "invalid_duration", "message": "Некорректная длительность"}, status_code=400)
+
+    if duration not in ALLOWED_DURATIONS:
+        return JSONResponse({"error": "invalid_duration", "message": "Длительность может быть 10, 15 или 20 секунд"}, status_code=400)
+
+    if payload.source == "upload" and not UPLOAD_ID_RE.match(payload.upload_id or ""):
+        return JSONResponse({"error": "invalid_upload_id", "message": "Загруженные фото не найдены"}, status_code=400)
+
+    price = PRICES[payload.source][duration]
     price_kop = price * 100
 
     if user["balance_kop"] < price_kop:
@@ -75,7 +100,7 @@ async def api_generate(payload: GenerateRequest, request: Request):
         db.execute("UPDATE users SET balance_kop = balance_kop - ? WHERE id = ?", (price_kop, user["id"]))
         cur = db.execute(
             "INSERT INTO generations (user_id, topic, source, duration, price_kop, status) VALUES (?, ?, ?, ?, ?, 'pending')",
-            (user["id"], payload.topic, payload.source, int(payload.duration), price_kop),
+            (user["id"], payload.topic, payload.source, duration, price_kop),
         )
         generation_id = cur.lastrowid
         db.commit()
@@ -309,7 +334,9 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
                 except Exception:
                     pass
 
-            if payload.source == "upload" and payload.upload_id:
+            # Формат upload_id проверен ещё в api_generate, но здесь стоит rmtree —
+            # операция необратимая, поэтому проверяем повторно перед удалением.
+            if payload.source == "upload" and UPLOAD_ID_RE.match(payload.upload_id or ""):
                 up_dir = os.path.join("media", "uploads", payload.upload_id)
                 if os.path.isdir(up_dir):
                     try:
