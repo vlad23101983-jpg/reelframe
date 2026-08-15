@@ -21,6 +21,7 @@ from payments import router as payments_router
 from admin import router as admin_router
 from support import router as support_router
 from cleanup import run_cleanup_loop
+from payments import run_payment_reconcile_loop
 
 app = FastAPI(title="Kinomotor")
 
@@ -29,6 +30,7 @@ app = FastAPI(title="Kinomotor")
 async def on_startup():
     init_db()
     asyncio.create_task(run_cleanup_loop())
+    asyncio.create_task(run_payment_reconcile_loop())
 
 
 app.include_router(auth_router)
