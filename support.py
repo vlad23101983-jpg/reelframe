@@ -119,11 +119,13 @@ async def reply_ticket(ticket_id: int, body: ReplyBody, request: Request):
     db = get_db()
     try:
         ticket = db.execute(
-            "SELECT id FROM support_tickets WHERE id = ? AND user_id = ?",
+            "SELECT id, status FROM support_tickets WHERE id = ? AND user_id = ?",
             (ticket_id, user["id"]),
         ).fetchone()
         if not ticket:
             return JSONResponse({"error": "not_found"}, status_code=404)
+        if ticket["status"] == "closed":
+            return JSONResponse({"error": "ticket_closed", "message": "Обращение закрыто"}, status_code=400)
 
         db.execute(
             "INSERT INTO support_messages (ticket_id, sender, message) VALUES (?, 'user', ?)",

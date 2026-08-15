@@ -79,10 +79,11 @@
       <span class="sup-back" onclick="showList()">← Все обращения</span>
       <h2 id="threadSubject" style="font-family:'Fraunces', serif; font-size:20px; margin:0 0 16px;"></h2>
       <div id="threadMessages"></div>
-      <div style="margin-top:16px;">
+      <div id="replyForm" style="margin-top:16px;">
         <textarea id="replyMessage" placeholder="Ваш ответ..." style="width:100%; min-height:80px; padding:12px 14px; border:1px solid var(--hairline); border-radius:8px; font-family:inherit; font-size:14px; background:var(--bg); color:var(--ink); box-sizing:border-box; margin-bottom:10px;"></textarea>
         <button class="btn btn-primary" onclick="sendReply()">Ответить</button>
       </div>
+      <p id="closedNote" style="display:none; font-size:13px; color:var(--ink-faint); margin-top:16px;">Обращение закрыто. Если вопрос не решён — создайте новое.</p>
     </div>
   </div>
 </main>
@@ -166,6 +167,10 @@
         ${escapeHtml(m.message)}
       </div>
     `).join('');
+
+    const isClosed = data.ticket.status === 'closed';
+    document.getElementById('replyForm').style.display = isClosed ? 'none' : 'block';
+    document.getElementById('closedNote').style.display = isClosed ? 'block' : 'none';
 
     document.getElementById('listView').style.display = 'none';
     document.getElementById('threadView').classList.add('visible');
