@@ -54,8 +54,8 @@ VOICE_PRESETS = {
     "en": {
         "v_adam": {
             "title": "Adam",
-            "description": "Confident male — business, reviews, motivation",
-            "voice_id": "pNInz6obpgDQGcFmaJgB",
+            "description": "Deliberate, confident engineering professor — e-learning, training, narration",
+            "voice_id": "QIhD5ivPGEoYZQDocuHI",
         },
         "v_rachel": {
             "title": "Rachel",
