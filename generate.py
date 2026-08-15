@@ -26,7 +26,7 @@ from app.zimage_generator import generate_zimage_clip, warm_up as warm_up_zimage
 from app.photo_processor import prepare_user_photo
 from app.veo_generator import generate_veo_clips, get_scenes_count
 from app.assembler import assemble_final_video
-from app.voice import generate_speech
+from app.voice import generate_speech_with_timings
 
 router = APIRouter(prefix="/api", tags=["generate"])
 
@@ -211,10 +211,21 @@ async def run_generation(task_id: str, payload: GenerateRequest, generation_id: 
             TASKS[task_id].update(step=2)
             lang_voices = VOICE_PRESETS.get(payload.language, VOICE_PRESETS["ru"])
             voice_preset = lang_voices.get(payload.voice, list(lang_voices.values())[0])
-            await asyncio.to_thread(
-                generate_speech, voice_text, audio_file_path,
+            _, word_timings = await asyncio.to_thread(
+                generate_speech_with_timings, voice_text, audio_file_path,
                 voice_preset["voice_id"], "eleven_v3"
             )
+
+            # ЭТАП 1: пока только проверяем качество разметки на живой речи.
+            # Субтитры ещё не рисуются — это следующий шаг.
+            if word_timings:
+                preview = " | ".join(
+                    f"{w['word']}@{w['start']:.2f}-{w['end']:.2f}"
+                    for w in word_timings[:12]
+                )
+                print(f"[субтитры] Слов размечено: {len(word_timings)}. Первые: {preview}", flush=True)
+            else:
+                print("[субтитры] Тайминги не получены — субтитры были бы недоступны", flush=True)
 
             TASKS[task_id].update(step=3)
 
