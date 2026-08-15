@@ -72,7 +72,7 @@
 
     <div class="field">
       <label class="field-label">Тема ролика</label>
-      <div class="field-hint">Опишите, о чём видео — сценарий, хук и хештеги напишутся сами</div>
+      <div class="field-hint" id="topicHint">Опишите, о чём видео — сценарий, хук и хештеги напишутся сами</div>
       <textarea id="topic" placeholder="Например: три привычки, которые помогают проснуться бодрым" oninput="sync()"></textarea>
       <div class="char-count"><span id="topicLen">0</span> символов</div>
     </div>
@@ -182,7 +182,13 @@ function pick(el, group){
   if(group==='duration') st.duration = el.dataset.dur;
   if(group==='voice'){ st.voice = el.dataset.voice; st.voiceTitle = el.dataset.title; }
   if(group==='music'){ st.music = el.dataset.music; st.musicTitle = el.dataset.title; }
-  if(group==='language') st.language = el.dataset.lang;
+  if(group==='language'){
+    st.language = el.dataset.lang;
+    const hint = document.getElementById('topicHint');
+    hint.textContent = st.language === 'en'
+      ? 'Можно описать тему по-русски — ИИ сам переведёт и сделает видео на английском'
+      : 'Опишите, о чём видео — сценарий, хук и хештеги напишутся сами';
+  }
   sync();
 }
 
