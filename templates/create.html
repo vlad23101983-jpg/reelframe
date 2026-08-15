@@ -230,9 +230,12 @@ function pick(el, group){
   if(group==='language'){
     st.language = el.dataset.lang;
     const hint = document.getElementById('topicHint');
+    // Интерфейс русский независимо от языка озвучки: выбор 'en' означает,
+    // что диктор говорит по-английски, а не что пользователь читает по-английски.
+    const baseHint = 'Чем подробнее опишете — тем качественнее видео. Укажите детали для кадра: как выглядят люди (реалистично или как мультфильм), место действия, природа — вода, песок, лес. А также о чём должен говорить диктор — по этой теме ИИ напишет текст озвучки';
     hint.textContent = st.language === 'en'
-      ? 'The more detail, the better the video. Describe people (realistic or cartoon style), the setting, nature — water, sand, forest. Also say what the narrator should talk about — AI writes the voiceover from this. You can write in Russian — AI will translate.'
-      : 'Чем подробнее опишете — тем качественнее видео. Укажите детали для кадра: как выглядят люди (реалистично или как мультфильм), место действия, природа — вода, песок, лес. А также о чём должен говорить диктор — по этой теме ИИ напишет текст озвучки';
+      ? baseHint + '. Пишите по-русски — ИИ переведёт текст озвучки на английский'
+      : baseHint;
 
     const ruGrid = document.getElementById('voiceGridRu');
     const enGrid = document.getElementById('voiceGridEn');
