@@ -54,12 +54,14 @@
       <button class="adm-tab" data-tab="users" onclick="switchTab('users')">Пользователи</button>
       <button class="adm-tab" data-tab="payments" onclick="switchTab('payments')">Платежи</button>
       <button class="adm-tab" data-tab="errors" onclick="switchTab('errors')">Ошибки</button>
+      <button class="adm-tab" data-tab="support" onclick="switchTab('support')">Поддержка</button>
     </div>
 
     <div id="tab-stats" class="adm-tab-content"></div>
     <div id="tab-users" class="adm-tab-content" style="display:none;"></div>
     <div id="tab-payments" class="adm-tab-content" style="display:none;"></div>
     <div id="tab-errors" class="adm-tab-content" style="display:none;"></div>
+    <div id="tab-support" class="adm-tab-content" style="display:none;"></div>
   </div>
 </main>
 
@@ -90,6 +92,7 @@
     if (name === 'users') return loadUsers();
     if (name === 'payments') return loadPayments();
     if (name === 'errors') return loadErrors();
+    if (name === 'support') return loadSupportTickets();
   }
 
   async function loadStats() {
@@ -188,6 +191,83 @@
           `).join('')}
         </tbody>
       </table>`;
+  }
+
+  const STATUS_TITLES_SUP = { open: 'Открыт', answered: 'Отвечено', closed: 'Закрыт' };
+  let currentAdminTicketId = null;
+
+  async function loadSupportTickets() {
+    const el = document.getElementById('tab-support');
+    const res = await fetch('/api/admin/support/tickets');
+    if (!res.ok) { el.innerHTML = '<div class="adm-empty">Нет доступа</div>'; return; }
+    const d = await res.json();
+    if (!d.tickets.length) { el.innerHTML = '<div class="adm-empty">Обращений пока нет</div>'; return; }
+    el.innerHTML = `
+      <table class="adm-table">
+        <thead><tr><th>Email</th><th>Тема</th><th>Статус</th><th>Обновлено</th><th></th></tr></thead>
+        <tbody>
+          ${d.tickets.map(t => `
+            <tr>
+              <td>${escapeHtml(t.email)}</td>
+              <td>${escapeHtml(t.subject)}</td>
+              <td>${STATUS_TITLES_SUP[t.status] || t.status}</td>
+              <td>${formatDate(t.updated_at)}</td>
+              <td><button class="adm-btn-small" onclick="openAdminTicket(${t.id})">Открыть</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  async function openAdminTicket(id) {
+    currentAdminTicketId = id;
+    const res = await fetch(`/api/admin/support/tickets/${id}`);
+    if (!res.ok) { alert('Не удалось загрузить обращение'); return; }
+    const d = await res.json();
+
+    const el = document.getElementById('tab-support');
+    el.innerHTML = `
+      <span class="adm-btn-small" style="cursor:pointer; display:inline-block; margin-bottom:14px;" onclick="loadSupportTickets()">← Все обращения</span>
+      <h3 style="font-family:'Fraunces', serif; font-size:18px; margin:0 0 4px;">${escapeHtml(d.ticket.subject)}</h3>
+      <p style="font-size:12px; color:var(--ink-faint); margin:0 0 16px;">${escapeHtml(d.ticket.email)}</p>
+      <div style="margin-bottom:16px;">
+        ${d.messages.map(m => `
+          <div style="padding:12px 14px; border-radius:8px; margin-bottom:8px; font-size:13.5px; background:${m.sender === 'admin' ? 'var(--accent-soft)' : 'var(--bg-panel)'}; border:1px solid var(--hairline);">
+            <div style="font-size:11px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; margin-bottom:4px;">${m.sender === 'admin' ? 'Вы (админ)' : 'Пользователь'} · ${formatDate(m.created_at)}</div>
+            ${escapeHtml(m.message)}
+          </div>
+        `).join('')}
+      </div>
+      <textarea id="adminReplyMsg" placeholder="Ваш ответ..." style="width:100%; min-height:80px; padding:12px 14px; border:1px solid var(--hairline); border-radius:8px; font-family:inherit; font-size:14px; background:var(--bg); color:var(--ink); box-sizing:border-box; margin-bottom:10px;"></textarea>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-primary" onclick="sendAdminReply()">Ответить</button>
+        <select id="adminTicketStatus" onchange="changeTicketStatus()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--hairline); background:var(--bg); color:var(--ink); font-size:13px;">
+          <option value="open" ${d.ticket.status === 'open' ? 'selected' : ''}>Открыт</option>
+          <option value="answered" ${d.ticket.status === 'answered' ? 'selected' : ''}>Отвечено</option>
+          <option value="closed" ${d.ticket.status === 'closed' ? 'selected' : ''}>Закрыт</option>
+        </select>
+      </div>`;
+  }
+
+  async function sendAdminReply() {
+    const message = document.getElementById('adminReplyMsg').value.trim();
+    if (!message) return;
+    const res = await fetch(`/api/admin/support/tickets/${currentAdminTicketId}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    if (!res.ok) { alert('Не удалось отправить ответ'); return; }
+    openAdminTicket(currentAdminTicketId);
+  }
+
+  async function changeTicketStatus() {
+    const status = document.getElementById('adminTicketStatus').value;
+    await fetch(`/api/admin/support/tickets/${currentAdminTicketId}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
   }
 
   loadStats();

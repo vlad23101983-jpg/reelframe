@@ -157,3 +157,105 @@ async def admin_topup(body: TopUpBody, request: Request):
         db.close()
 
     return {"ok": True}
+
+
+@router.get("/api/admin/support/tickets")
+async def admin_list_tickets(request: Request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    db = get_db()
+    try:
+        rows = db.execute(
+            """
+            SELECT t.id, u.email, t.subject, t.status, t.created_at, t.updated_at
+            FROM support_tickets t
+            JOIN users u ON u.id = t.user_id
+            ORDER BY t.updated_at DESC
+            """
+        ).fetchall()
+    finally:
+        db.close()
+
+    return {"tickets": [dict(r) for r in rows]}
+
+
+@router.get("/api/admin/support/tickets/{ticket_id}")
+async def admin_get_ticket(ticket_id: int, request: Request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    db = get_db()
+    try:
+        ticket = db.execute(
+            """
+            SELECT t.id, u.email, t.subject, t.status, t.created_at
+            FROM support_tickets t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.id = ?
+            """,
+            (ticket_id,),
+        ).fetchone()
+        if not ticket:
+            return JSONResponse({"error": "not_found"}, status_code=404)
+
+        messages = db.execute(
+            "SELECT sender, message, created_at FROM support_messages WHERE ticket_id = ? ORDER BY id ASC",
+            (ticket_id,),
+        ).fetchall()
+    finally:
+        db.close()
+
+    return {"ticket": dict(ticket), "messages": [dict(m) for m in messages]}
+
+
+class AdminReplyBody(BaseModel):
+    message: str
+
+
+@router.post("/api/admin/support/tickets/{ticket_id}/reply")
+async def admin_reply_ticket(ticket_id: int, body: AdminReplyBody, request: Request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    message = body.message.strip()
+    if not message:
+        return JSONResponse({"error": "invalid", "message": "Введите сообщение"}, status_code=400)
+
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO support_messages (ticket_id, sender, message) VALUES (?, 'admin', ?)",
+            (ticket_id, message),
+        )
+        db.execute(
+            "UPDATE support_tickets SET status = 'answered', updated_at = datetime('now') WHERE id = ?",
+            (ticket_id,),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return {"ok": True}
+
+
+class AdminTicketStatusBody(BaseModel):
+    status: str
+
+
+@router.post("/api/admin/support/tickets/{ticket_id}/status")
+async def admin_set_ticket_status(ticket_id: int, body: AdminTicketStatusBody, request: Request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    if body.status not in ("open", "answered", "closed"):
+        return JSONResponse({"error": "invalid_status"}, status_code=400)
+
+    db = get_db()
+    try:
+        db.execute("UPDATE support_tickets SET status = ? WHERE id = ?", (body.status, ticket_id))
+        db.commit()
+    finally:
+        db.close()
+
+    return {"ok": True}

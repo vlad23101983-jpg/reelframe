@@ -62,15 +62,22 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
 
-CREATE TABLE IF NOT EXISTS payments (
+CREATE TABLE IF NOT EXISTS support_tickets (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id       INTEGER NOT NULL REFERENCES users(id),
-    order_id      TEXT NOT NULL UNIQUE,
-    amount_kop    INTEGER NOT NULL,
-    status        TEXT NOT NULL DEFAULT 'NEW',
-    payment_id    TEXT,
+    subject       TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'open',
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at    TEXT
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
+CREATE TABLE IF NOT EXISTS support_messages (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id     INTEGER NOT NULL REFERENCES support_tickets(id),
+    sender        TEXT NOT NULL,
+    message       TEXT NOT NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user ON support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_messages_ticket ON support_messages(ticket_id);

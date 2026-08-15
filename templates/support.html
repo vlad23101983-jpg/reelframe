@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Поддержка — Kinomotor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/main.css?v={{ static_version('main.css') }}">
+<style>
+  .sup-shell{ max-width:720px; margin:0 auto; padding:56px 28px 90px; }
+  .sup-title{ font-family:'Fraunces', serif; font-weight:600; font-size:clamp(26px, 3.4vw, 34px); margin:0 0 24px; }
+
+  .sup-new-btn{ margin-bottom:24px; }
+
+  .sup-form{
+    border:1px solid var(--hairline); border-radius:10px; background:var(--bg-panel);
+    padding:22px 24px; margin-bottom:24px; display:none;
+  }
+  .sup-form.visible{ display:block; }
+  .sup-form input, .sup-form textarea{
+    width:100%; padding:12px 14px; border:1px solid var(--hairline); border-radius:8px;
+    font-family:inherit; font-size:14px; background:var(--bg); color:var(--ink); margin-bottom:12px; box-sizing:border-box;
+  }
+  .sup-form textarea{ min-height:100px; resize:vertical; }
+
+  .sup-ticket-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:16px 18px; border:1px solid var(--hairline); border-radius:10px;
+    background:var(--bg-panel); margin-bottom:10px; cursor:pointer;
+  }
+  .sup-ticket-subject{ font-size:14.5px; font-weight:600; margin:0 0 4px; }
+  .sup-ticket-meta{ font-size:12px; color:var(--ink-faint); font-family:'JetBrains Mono', monospace; }
+  .sup-status{
+    font-size:11px; padding:4px 10px; border-radius:20px;
+    font-family:'JetBrains Mono', monospace; text-transform:uppercase; letter-spacing:0.04em; flex-shrink:0;
+  }
+  .sup-status.open{ background:var(--bg-panel-2); color:var(--ink-faint); }
+  .sup-status.answered{ background:var(--accent-soft); color:var(--accent-dim); }
+  .sup-status.closed{ background:rgba(120,120,120,0.12); color:var(--ink-faint); }
+
+  .sup-empty{ text-align:center; padding:50px 20px; color:var(--ink-faint); font-size:14px; }
+
+  .sup-thread{ display:none; }
+  .sup-thread.visible{ display:block; }
+  .sup-back{ font-size:13px; color:var(--ink-faint); cursor:pointer; margin-bottom:16px; display:inline-block; }
+  .sup-msg{ padding:14px 16px; border-radius:10px; margin-bottom:10px; font-size:14px; line-height:1.5; }
+  .sup-msg.user{ background:var(--bg-panel); border:1px solid var(--hairline); }
+  .sup-msg.admin{ background:var(--accent-soft); border:1px solid transparent; }
+  .sup-msg-meta{ font-size:11px; color:var(--ink-faint); font-family:'JetBrains Mono', monospace; margin-bottom:6px; }
+
+  .loading{ text-align:center; padding:40px; color:var(--ink-faint); font-size:14px; }
+</style>
+</head>
+<body>
+
+{% include "header.html" %}
+
+<main>
+  <div class="sup-shell">
+    <h1 class="sup-title">Поддержка</h1>
+
+    <div id="loadingState" class="loading">Загружаем...</div>
+
+    <div id="listView" style="display:none;">
+      <button class="btn btn-primary sup-new-btn" onclick="toggleNewForm()">Новое обращение</button>
+
+      <div class="sup-form" id="newForm">
+        <input type="text" id="newSubject" placeholder="Тема обращения" maxlength="200">
+        <textarea id="newMessage" placeholder="Опишите проблему подробно..."></textarea>
+        <button class="btn btn-primary" onclick="submitTicket()">Отправить</button>
+      </div>
+
+      <div id="ticketsList"></div>
+    </div>
+
+    <div id="threadView" class="sup-thread">
+      <span class="sup-back" onclick="showList()">← Все обращения</span>
+      <h2 id="threadSubject" style="font-family:'Fraunces', serif; font-size:20px; margin:0 0 16px;"></h2>
+      <div id="threadMessages"></div>
+      <div style="margin-top:16px;">
+        <textarea id="replyMessage" placeholder="Ваш ответ..." style="width:100%; min-height:80px; padding:12px 14px; border:1px solid var(--hairline); border-radius:8px; font-family:inherit; font-size:14px; background:var(--bg); color:var(--ink); box-sizing:border-box; margin-bottom:10px;"></textarea>
+        <button class="btn btn-primary" onclick="sendReply()">Ответить</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+{% include "footer.html" %}
+
+<script>
+  const STATUS_TITLES = { open: 'Открыт', answered: 'Отвечено', closed: 'Закрыт' };
+  let currentTicketId = null;
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : str;
+    return div.innerHTML;
+  }
+
+  function formatDate(isoStr) {
+    const d = new Date(isoStr.replace(' ', 'T') + 'Z');
+    return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function toggleNewForm() {
+    document.getElementById('newForm').classList.toggle('visible');
+  }
+
+  async function loadTickets() {
+    const res = await fetch('/api/support/tickets');
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
+    const data = await res.json();
+    const list = document.getElementById('ticketsList');
+
+    if (!data.tickets || data.tickets.length === 0) {
+      list.innerHTML = '<div class="sup-empty">У вас пока нет обращений в поддержку</div>';
+    } else {
+      list.innerHTML = data.tickets.map(t => `
+        <div class="sup-ticket-row" onclick="openTicket(${t.id})">
+          <div>
+            <p class="sup-ticket-subject">${escapeHtml(t.subject)}</p>
+            <p class="sup-ticket-meta">${formatDate(t.updated_at)}</p>
+          </div>
+          <span class="sup-status ${t.status}">${STATUS_TITLES[t.status] || t.status}</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('listView').style.display = 'block';
+  }
+
+  async function submitTicket() {
+    const subject = document.getElementById('newSubject').value.trim();
+    const message = document.getElementById('newMessage').value.trim();
+    if (!subject || !message) { alert('Заполните тему и сообщение'); return; }
+
+    const res = await fetch('/api/support/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject, message })
+    });
+    if (!res.ok) { alert('Не удалось отправить обращение'); return; }
+
+    document.getElementById('newSubject').value = '';
+    document.getElementById('newMessage').value = '';
+    document.getElementById('newForm').classList.remove('visible');
+    loadTickets();
+  }
+
+  async function openTicket(id) {
+    currentTicketId = id;
+    const res = await fetch(`/api/support/tickets/${id}`);
+    if (!res.ok) { alert('Не удалось загрузить обращение'); return; }
+    const data = await res.json();
+
+    document.getElementById('threadSubject').textContent = data.ticket.subject;
+    document.getElementById('threadMessages').innerHTML = data.messages.map(m => `
+      <div class="sup-msg ${m.sender}">
+        <div class="sup-msg-meta">${m.sender === 'admin' ? 'Поддержка' : 'Вы'} · ${formatDate(m.created_at)}</div>
+        ${escapeHtml(m.message)}
+      </div>
+    `).join('');
+
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('threadView').classList.add('visible');
+  }
+
+  function showList() {
+    document.getElementById('threadView').classList.remove('visible');
+    document.getElementById('listView').style.display = 'block';
+    loadTickets();
+  }
+
+  async function sendReply() {
+    const message = document.getElementById('replyMessage').value.trim();
+    if (!message) return;
+
+    const res = await fetch(`/api/support/tickets/${currentTicketId}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    if (!res.ok) { alert('Не удалось отправить ответ'); return; }
+
+    document.getElementById('replyMessage').value = '';
+    openTicket(currentTicketId);
+  }
+
+  loadTickets();
+</script>
+
+</body>
+</html>
