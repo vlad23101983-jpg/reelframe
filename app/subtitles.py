@@ -16,7 +16,14 @@ Kinomotor — app/subtitles.py
 import os
 
 FONT_NAME = "Montserrat ExtraBold"
-FONTS_DIR = os.path.join("media", "fonts")
+
+# Путь строится от расположения самого модуля, а НЕ от текущего каталога:
+# systemd может запустить сервис откуда угодно, и относительный путь тогда
+# не найдётся. libass молча подставит системный шрифт — субтитры отрисуются,
+# но тонким шрифтом вместо жирного, и выглядеть будут заметно хуже.
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_DIR = os.path.dirname(_APP_DIR)
+FONTS_DIR = os.path.join(_PROJECT_DIR, "media", "fonts")
 
 # Сколько слов держать в одной строке. Русский заметно длиннее английского,
 # поэтому строки короткие — иначе текст занимает пол-экрана.
@@ -27,9 +34,19 @@ COLOR_TEXT = "&H00FFFFFF"      # белый — ещё не прозвучавш
 COLOR_HIGHLIGHT = "&H0000D7FF" # жёлтый — слово, которое звучит сейчас
 COLOR_OUTLINE = "&H00000000"   # чёрная обводка держит текст на любом фоне
 
-FONT_SIZE = 74
-OUTLINE_WIDTH = 7
+FONT_SIZE = 72
+OUTLINE_WIDTH = 6
 SHADOW_DEPTH = 4
+
+# Межбуквенный интервал. При жирной обводке контуры соседних букв смыкаются
+# и промежуток между словами визуально пропадает — текст читается слитно.
+LETTER_SPACING = 2
+
+# Субтитры пишутся заглавными: у строчных букв разная высота, и обводка
+# смыкает их между словами. Заглавные разделяются заметно лучше — и это
+# тот же приём, что в CapCut и других редакторах коротких видео.
+UPPERCASE = True
+
 MARGIN_BOTTOM = 470  # выше интерфейса TikTok/Reels с кнопками и описанием
 MARGIN_SIDE = 100
 
@@ -88,12 +105,13 @@ def _escape(text: str) -> str:
     обратный слэш — управляющий символ. Слово из речи не должно
     случайно превратиться в команду разметки.
     """
-    return (
+    text = (
         text.replace("\\", "")
         .replace("{", "(")
         .replace("}", ")")
         .replace("\n", " ")
     )
+    return text.upper() if UPPERCASE else text
 
 
 def _group_into_lines(words, per_line: int):
@@ -150,7 +168,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Karaoke,{FONT_NAME},{FONT_SIZE},{COLOR_TEXT},{COLOR_HIGHLIGHT},{COLOR_OUTLINE},{COLOR_OUTLINE},0,0,0,0,100,100,0,0,1,{OUTLINE_WIDTH},{SHADOW_DEPTH},2,{MARGIN_SIDE},{MARGIN_SIDE},{MARGIN_BOTTOM},1
+Style: Karaoke,{FONT_NAME},{FONT_SIZE},{COLOR_TEXT},{COLOR_HIGHLIGHT},{COLOR_OUTLINE},{COLOR_OUTLINE},0,0,0,0,100,100,{LETTER_SPACING},0,1,{OUTLINE_WIDTH},{SHADOW_DEPTH},2,{MARGIN_SIDE},{MARGIN_SIDE},{MARGIN_BOTTOM},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -174,11 +192,21 @@ def ass_filter(ass_path: str) -> str:
     if not ass_path or not os.path.exists(ass_path):
         return ""
 
+    ass_path = os.path.abspath(ass_path)
+
     def esc(p):
         return p.replace("\\", "/").replace(":", "\\:").replace("'", "")
 
     parts = [f"ass={esc(ass_path)}"]
-    if os.path.isdir(FONTS_DIR):
+
+    font_file = os.path.join(FONTS_DIR, "Montserrat-ExtraBold.ttf")
+    if os.path.isfile(font_file):
         parts.append(f"fontsdir={esc(FONTS_DIR)}")
+    else:
+        # Молчать нельзя: libass подставит системный шрифт, субтитры
+        # отрисуются, но будут выглядеть заметно хуже, и понять почему
+        # без этой строки невозможно.
+        print(f"[субтитры] ВНИМАНИЕ: шрифт не найден по пути {font_file} — "
+              f"будет использован системный, вид ухудшится", flush=True)
 
     return ":".join(parts)
