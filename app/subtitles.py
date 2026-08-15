@@ -25,26 +25,26 @@ _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_DIR = os.path.dirname(_APP_DIR)
 FONTS_DIR = os.path.join(_PROJECT_DIR, "media", "fonts")
 
-# Сколько слов держать в одной строке. Русский заметно длиннее английского,
-# поэтому строки короткие — иначе текст занимает пол-экрана.
-WORDS_PER_LINE = 4
+# Сколько слов показывать за раз. Пять — как в утверждённом демо: libass при
+# WrapStyle 0 сам разбивает их на две сбалансированные строки, и блок читается
+# компактнее, чем одна длинная строка.
+WORDS_PER_LINE = 5
 
 # Цвета в ASS задаются как &HAABBGGRR — порядок байтов обратный привычному RGB.
 COLOR_TEXT = "&H00FFFFFF"      # белый — ещё не прозвучавшие слова
 COLOR_HIGHLIGHT = "&H0000D7FF" # жёлтый — слово, которое звучит сейчас
 COLOR_OUTLINE = "&H00000000"   # чёрная обводка держит текст на любом фоне
+COLOR_SHADOW = "&H80000000"    # полупрозрачная тень — мягче сплошной чёрной
 
-FONT_SIZE = 72
-OUTLINE_WIDTH = 6
+# Значения ниже взяты из утверждённого демо demo_karaoke.mp4 и должны ему
+# соответствовать. Подобраны вместе: правка любого меняет читаемость строки,
+# поэтому менять по одному нельзя.
+FONT_SIZE = 74
+OUTLINE_WIDTH = 7
 SHADOW_DEPTH = 4
+LETTER_SPACING = 0
 
-# Межбуквенный интервал. При жирной обводке контуры соседних букв смыкаются
-# и промежуток между словами визуально пропадает — текст читается слитно.
-LETTER_SPACING = 2
-
-# Субтитры пишутся заглавными: у строчных букв разная высота, и обводка
-# смыкает их между словами. Заглавные разделяются заметно лучше — и это
-# тот же приём, что в CapCut и других редакторах коротких видео.
+# Заглавные — как в демо и как принято в субтитрах коротких видео.
 UPPERCASE = True
 
 MARGIN_BOTTOM = 470  # выше интерфейса TikTok/Reels с кнопками и описанием
@@ -168,7 +168,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Karaoke,{FONT_NAME},{FONT_SIZE},{COLOR_TEXT},{COLOR_HIGHLIGHT},{COLOR_OUTLINE},{COLOR_OUTLINE},0,0,0,0,100,100,{LETTER_SPACING},0,1,{OUTLINE_WIDTH},{SHADOW_DEPTH},2,{MARGIN_SIDE},{MARGIN_SIDE},{MARGIN_BOTTOM},1
+Style: Karaoke,{FONT_NAME},{FONT_SIZE},{COLOR_TEXT},{COLOR_HIGHLIGHT},{COLOR_OUTLINE},{COLOR_SHADOW},0,0,0,0,100,100,{LETTER_SPACING},0,1,{OUTLINE_WIDTH},{SHADOW_DEPTH},2,{MARGIN_SIDE},{MARGIN_SIDE},{MARGIN_BOTTOM},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
