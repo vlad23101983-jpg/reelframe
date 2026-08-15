@@ -50,6 +50,11 @@ VOICE_PRESETS = {
             "description": "Мягкий женский — сказки, медитации, дети",
             "voice_id": "GN4wbsbejSnGSa1AzjH5",
         },
+        "v_egor": {
+            "title": "Егор",
+            "description": "Спокойный размеренный — объяснения, обучение, документальное",
+            "voice_id": "C1Jbh3J5Tp1r1TyKaVSY",
+        },
     },
     "en": {
         "v_adam": {
