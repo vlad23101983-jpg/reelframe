@@ -6,11 +6,24 @@ Kinomotor — pages.py
 from fastapi import APIRouter, Request
 import os
 import subprocess
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="templates")
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt():
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /account\n"
+        "Disallow: /login\n"
+        "Disallow: /support\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
