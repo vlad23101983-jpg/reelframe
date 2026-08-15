@@ -82,6 +82,11 @@ VOICE_PRESETS = {
             "description": "Playful, bright, warm, youthful — conversational content",
             "voice_id": "r1KmysJdVYZjJCm4mL3b",
         },
+        "v_jon_catalyst": {
+            "title": "Jon (Catalyst)",
+            "description": "Sharp, confident, witty — documentaries, explainers, podcasts",
+            "voice_id": "dSByRdUbTGloB7TFA1qD",
+        },
     },
 }
 
