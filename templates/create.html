@@ -18,6 +18,19 @@
     <h1 class="page-title">Создать видео</h1>
 
     <div class="field">
+      <label class="field-label">Язык озвучки</label>
+      <div class="field-hint">Текст, заголовок и описание будут на этом языке — тему можно писать на любом</div>
+      <div class="source-grid">
+        <div class="opt on" data-lang="ru" onclick="pick(this,'language')">
+          <div class="opt-top"><span class="opt-name">Русский</span></div>
+        </div>
+        <div class="opt" data-lang="en" onclick="pick(this,'language')">
+          <div class="opt-top"><span class="opt-name">English</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
       <label class="field-label">Из чего собрать</label>
       <div class="field-hint">Способ, которым будут созданы кадры ролика</div>
       <div class="source-grid">
@@ -75,19 +88,6 @@
       <div class="field-hint" id="topicHint">Опишите, о чём видео — сценарий, хук и хештеги напишутся сами</div>
       <textarea id="topic" placeholder="Например: три привычки, которые помогают проснуться бодрым" oninput="sync()"></textarea>
       <div class="char-count"><span id="topicLen">0</span> символов</div>
-    </div>
-
-    <div class="field">
-      <label class="field-label">Язык озвучки</label>
-      <div class="field-hint">Текст, заголовок и описание будут на этом языке</div>
-      <div class="source-grid">
-        <div class="opt on" data-lang="ru" onclick="pick(this,'language')">
-          <div class="opt-top"><span class="opt-name">Русский</span></div>
-        </div>
-        <div class="opt" data-lang="en" onclick="pick(this,'language')">
-          <div class="opt-top"><span class="opt-name">English</span></div>
-        </div>
-      </div>
     </div>
 
     <div class="field">
