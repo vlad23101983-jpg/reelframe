@@ -72,6 +72,11 @@ VOICE_PRESETS = {
             "description": "Soft female — calm, narration, gentle content",
             "voice_id": "EXAVITQu4vr4xnSDxMaL",
         },
+        "v_jon": {
+            "title": "Jon",
+            "description": "Calm, reassuring, deeply human — wellness, coaching, support",
+            "voice_id": "enzbGixeo55iqn1QxbbC",
+        },
     },
 }
 
