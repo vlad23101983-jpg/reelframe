@@ -20,6 +20,7 @@ from generate import router as generate_router
 from payments import router as payments_router
 from admin import router as admin_router
 from support import router as support_router
+from frames import router as frames_router, recover_stuck_drafts
 from cleanup import run_cleanup_loop
 from payments import run_payment_reconcile_loop
 
@@ -29,6 +30,8 @@ app = FastAPI(title="Kinomotor")
 @app.on_event("startup")
 async def on_startup():
     init_db()
+    # Если сервис перезапустили посреди сборки кадров — вернуть деньги.
+    recover_stuck_drafts()
     asyncio.create_task(run_cleanup_loop())
     asyncio.create_task(run_payment_reconcile_loop())
 
@@ -40,6 +43,7 @@ app.include_router(generate_router)
 app.include_router(payments_router)
 app.include_router(admin_router)
 app.include_router(support_router)
+app.include_router(frames_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory="media"), name="media")

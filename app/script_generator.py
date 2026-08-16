@@ -15,6 +15,21 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
+def _script_limits(duration: int):
+    """
+    Сколько кадров и какой длины текст диктора для данной длительности.
+
+    ВАЖНО: лимиты символов подобраны под естественную скорость речи —
+    не менять. Вынесены сюда, чтобы у тарифа "Кадры" и у обычной
+    генерации они не разъехались.
+    """
+    if duration <= 10:
+        return 4, 180, 210
+    if duration <= 15:
+        return 5, 260, 290
+    return 6, 345, 385
+
+
 def get_video_script(topic: str, duration: int, scenes_override: int = None, video_type: str = "images", language: str = "ru") -> dict:
     """
     Возвращает JSON: hook_text, voice_text, keywords, social_description, hashtags.
@@ -26,15 +41,7 @@ def get_video_script(topic: str, duration: int, scenes_override: int = None, vid
     и хештегов. Промпты для картинок/видео (keywords) всегда на английском,
     независимо от языка озвучки — так лучше работают модели генерации изображений.
     """
-    if duration <= 10:
-        shots_count = 4
-        min_chars, max_chars = 180, 210
-    elif duration <= 15:
-        shots_count = 5
-        min_chars, max_chars = 260, 290
-    else:
-        shots_count = 6
-        min_chars, max_chars = 345, 385
+    shots_count, min_chars, max_chars = _script_limits(duration)
 
     if scenes_override is not None:
         shots_count = scenes_override
@@ -97,6 +104,68 @@ def get_video_script(topic: str, duration: int, scenes_override: int = None, vid
     interaction = ai_client.interactions.create(
         model="gemini-3.6-flash",
         input=prompt_with_instruction
+    )
+
+    raw_text = interaction.output_text.strip()
+    match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+    if match:
+        raw_text = match.group(0)
+
+    return json.loads(raw_text)
+
+
+def get_script_for_photos(photo_descriptions: list, duration: int, topic: str = "", language: str = "ru") -> dict:
+    """
+    Сценарий для тарифа "Кадры", когда кадры — это фотографии пользователя.
+
+    Отличие от get_video_script: там модель сама придумывает, что будет в
+    кадре, и выдаёт keywords. Здесь кадры уже есть и поменять их нельзя —
+    задача обратная: написать текст, который ложится ИМЕННО на эти снимки,
+    в их порядке. Поэтому keywords не запрашиваются вовсе.
+
+    photo_descriptions — что Gemini увидел на снимках (app/frame_photos.py),
+    по одному описанию на кадр, в порядке показа.
+    topic — необязательное пожелание человека, о чём должен быть ролик.
+    """
+    _, min_chars, max_chars = _script_limits(duration)
+    lang_name = {"ru": "РУССКОМ", "en": "АНГЛИЙСКОМ"}.get(language, "РУССКОМ")
+
+    frames_list = "\n".join(
+        f"Кадр {i + 1}: {d}" for i, d in enumerate(photo_descriptions)
+    )
+    topic_line = (
+        f"Пожелание автора о содержании ролика: {topic}\n"
+        if topic and topic.strip() else
+        "Автор не указал тему — опирайся только на сами кадры.\n"
+    )
+
+    system_instruction = (
+        f"Ты профессиональный сценарист коротких вирусных роликов для Reels/Shorts.\n"
+        f"Кадры ролика уже сняты и поменять их нельзя — это фотографии автора. "
+        f"Ниже они перечислены по порядку. Напиши текст, который ложится именно на "
+        f"эти кадры и раскрывает их как единую историю.\n"
+        f"Не описывай кадры вслух и не пересказывай, что на них видно — зритель и так "
+        f"это видит. Текст должен добавлять смысл, а не дублировать картинку.\n"
+        f"Не выдумывай событий, которых на кадрах нет, и не называй имён людей.\n\n"
+        f"{topic_line}\n"
+        f"{frames_list}\n\n"
+        f"Верни JSON с полями:\n"
+        f"1. 'hook_text': цепляющий короткий заголовок-хук из 2-4 слов НА {lang_name} "
+        f"ЗАГЛАВНЫМИ БУКВАМИ.\n"
+        f"2. 'voice_text': текст НА {lang_name} языке объемом {min_chars}-{max_chars} символов "
+        f"для диктора. Без эмодзи. Должен естественно разворачиваться в том же порядке, "
+        f"что и кадры.\n"
+        f"3. 'social_description': текст НА {lang_name} языке объёмом 500-700 символов — "
+        f"готовое SEO-описание для публикации в Instagram Reels и YouTube Shorts. "
+        f"Цепляет в первых 1-2 предложениях. Без хештегов внутри текста.\n"
+        f"4. 'hashtags': массив ровно из 5 хештегов НА {lang_name} ЯЗЫКЕ, каждый "
+        f"начинается с #, без пробелов внутри тега.\n"
+        f"Формат ответа: СТРОГО чистый JSON без markdown."
+    )
+
+    interaction = ai_client.interactions.create(
+        model="gemini-3.6-flash",
+        input=system_instruction
     )
 
     raw_text = interaction.output_text.strip()

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кадры — Kinomotor</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/main.css?v={{ static_version('main.css') }}">
+<style>
+  .frames-wrap{ max-width:820px; margin:0 auto; padding:44px 28px 80px; }
+  .frames-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-top:8px; }
+  .frame-cell{ position:relative; border-radius:10px; overflow:hidden; background:var(--bg-panel-2); aspect-ratio:9/16; }
+  .frame-cell img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .frame-num{
+    position:absolute; top:8px; left:8px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; color:#FAF6EE; background:rgba(28,26,22,0.66);
+    padding:3px 7px; border-radius:5px;
+  }
+  .frame-skeleton{ animation:pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.45; } }
+  .notice{
+    background:var(--bg-panel); border:1px solid var(--hairline);
+    border-radius:10px; padding:18px 20px; font-size:13.5px;
+    line-height:1.6; color:var(--ink-dim);
+  }
+  .notice b{ color:var(--ink); }
+  .price-line{
+    font-family:'JetBrains Mono',monospace; font-size:12.5px;
+    color:var(--ink-faint); margin:14px 0 20px;
+  }
+  .price-line b{ color:var(--accent-dim); }
+  .err{ color:var(--accent-dim); font-size:13.5px; line-height:1.6; }
+  @media (max-width:640px){ .frames-grid{ grid-template-columns:repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+{% include "header.html" %}
+
+<div class="frames-wrap">
+  <h1 class="page-title">Кадры</h1>
+  <p class="field-hint" style="margin:-10px 0 30px; font-size:14px;">
+    Сначала посмотрите на картинки. Понравятся — соберём из них видео.
+  </p>
+
+  <div id="stage"></div>
+</div>
+
+<script>
+const FRAMES_COUNT = {10: 4, 15: 5, 20: 6};
+const PRICES = {
+  generate: {10: 30, 15: 40, 20: 50},
+  upload:   {10: 10, 15: 15, 20: 20}
+};
+
+const st = { source: 'generate', duration: 15, language: 'ru', topic: '', files: 0 };
+let pollTimer = null;
+
+function framesNeeded(){ return FRAMES_COUNT[st.duration]; }
+
+// ---------- форма ----------
+
+function renderForm(){
+  const need = framesNeeded();
+  document.getElementById('stage').innerHTML = `
+    <div class="field">
+      <label class="field-label">Откуда взять кадры</label>
+      <div class="source-grid" style="grid-template-columns:repeat(2,1fr);">
+        <div class="opt ${st.source==='generate'?'on':''}" onclick="setSource('generate')">
+          <div class="opt-top"><span class="opt-name">Нарисует ИИ</span></div>
+          <div class="opt-desc">Опишите, что нужно — получите готовые кадры</div>
+        </div>
+        <div class="opt ${st.source==='upload'?'on':''}" onclick="setSource('upload')">
+          <div class="opt-top"><span class="opt-name">Мои фото</span></div>
+          <div class="opt-desc">Ваши снимки станут кадрами будущего ролика</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Длительность будущего ролика</label>
+      <div class="field-hint">От неё зависит, сколько кадров нужно</div>
+      <div class="dur-grid">
+        ${[10,15,20].map(d => `
+          <div class="dur-opt ${st.duration===d?'on':''}" onclick="setDuration(${d})">
+            <div class="dur-time">00:${d}</div>
+            <div class="dur-sub">${FRAMES_COUNT[d]} кадра</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Язык</label>
+      <div class="source-grid" style="grid-template-columns:repeat(2,1fr);">
+        <div class="opt ${st.language==='ru'?'on':''}" onclick="setLang('ru')">
+          <div class="opt-top"><span class="opt-name">Русский</span></div>
+        </div>
+        <div class="opt ${st.language==='en'?'on':''}" onclick="setLang('en')">
+          <div class="opt-top"><span class="opt-name">English</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">${st.source==='generate' ? 'Какие кадры нужны' : 'О чём ролик'}</label>
+      <div class="field-hint">${st.source==='generate'
+        ? 'Опишите словами, что должно быть на картинках'
+        : 'Необязательно — если не заполнить, текст напишем по самим снимкам'}</div>
+      <textarea id="topic" rows="3" oninput="st.topic=this.value"
+        style="width:100%; padding:12px 14px; border:1px solid var(--hairline); border-radius:8px;
+               font-family:inherit; font-size:14px; background:var(--bg-panel); color:var(--ink);
+               resize:vertical;">${st.topic}</textarea>
+    </div>
+
+    ${st.source==='upload' ? `
+    <div class="field">
+      <label class="field-label">Ваши фото</label>
+      <div class="field-hint">Нужно ровно ${need} — по одному на кадр, в том порядке, в каком выберете</div>
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-main">Нажмите, чтобы выбрать фото</div>
+        <div class="upload-sub" id="uploadCount">${st.files ? `Выбрано ${st.files} из ${need}` : 'Файлы не выбраны'}</div>
+      </div>
+      <input type="file" id="fileInput" multiple accept="image/*" style="display:none;" onchange="filesPicked(this)">
+      <ul class="upload-tips">
+        <li>Вертикальные фото подойдут лучше всего — ничего не обрежется</li>
+        <li>Горизонтальные тоже можно: по краям появятся размытые поля</li>
+        <li>Каждое фото — не больше 15 МБ</li>
+      </ul>
+    </div>` : ''}
+
+    <div class="price-line">Кадры обойдутся в <b>${PRICES[st.source][st.duration]} ₽</b> — видео оплачивается отдельно</div>
+
+    <button class="btn btn-primary" style="width:100%;" onclick="submit()">Сделать кадры</button>
+    <div id="formErr" class="err" style="margin-top:14px;"></div>
+  `;
+}
+
+function setSource(s){ st.source = s; st.files = 0; renderForm(); }
+function setDuration(d){ st.duration = d; renderForm(); }
+function setLang(l){ st.language = l; renderForm(); }
+
+function filesPicked(input){
+  st.files = input.files.length;
+  const need = framesNeeded();
+  const el = document.getElementById('uploadCount');
+  if(st.files === need) el.textContent = `Выбрано ${st.files} — то, что нужно`;
+  else el.textContent = `Выбрано ${st.files}, а нужно ровно ${need}`;
+}
+
+// ---------- отправка ----------
+
+async function submit(){
+  const err = document.getElementById('formErr');
+  err.textContent = '';
+  const need = framesNeeded();
+
+  if(st.source === 'generate' && !st.topic.trim()){
+    err.textContent = 'Напишите, какие кадры нужны';
+    return;
+  }
+
+  let uploadId = '';
+  const btn = document.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Отправляем…';
+
+  try{
+    if(st.source === 'upload'){
+      const input = document.getElementById('fileInput');
+      if(!input || input.files.length !== need){
+        err.textContent = `Нужно ровно ${need} фото`;
+        btn.disabled = false; btn.textContent = 'Сделать кадры';
+        return;
+      }
+      const fd = new FormData();
+      for(const f of input.files) fd.append('files', f);
+      const up = await fetch('/api/frames/upload', {method:'POST', body: fd});
+      const upData = await up.json();
+      if(!up.ok || !upData.upload_id) throw new Error(upData.message || 'Не удалось загрузить фото');
+      uploadId = upData.upload_id;
+    }
+
+    const res = await fetch('/api/frames/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        source: st.source, duration: st.duration, topic: st.topic,
+        language: st.language, upload_id: uploadId
+      })
+    });
+
+    if(res.status === 401){ window.location.href = '/login'; return; }
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.message || 'Не удалось начать');
+
+    history.replaceState(null, '', '/frames?draft=' + data.draft_id);
+    watch(data.draft_id);
+
+  }catch(e){
+    err.textContent = e.message || 'Что-то пошло не так';
+    btn.disabled = false;
+    btn.textContent = 'Сделать кадры';
+  }
+}
+
+// ---------- ожидание и показ ----------
+
+function renderWaiting(count){
+  document.getElementById('stage').innerHTML = `
+    <div class="notice"><b>Готовим кадры.</b> Обычно это занимает меньше минуты.
+    Страницу можно закрыть — кадры сохранятся, вернётесь по этой же ссылке.</div>
+    <div class="frames-grid">
+      ${Array.from({length: count}, (_, i) =>
+        `<div class="frame-cell frame-skeleton"><span class="frame-num">${i+1}</span></div>`).join('')}
+    </div>`;
+}
+
+function watch(draftId){
+  renderWaiting(framesNeeded());
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => load(draftId), 2500);
+  load(draftId);
+}
+
+async function load(draftId){
+  try{
+    const r = await fetch('/api/frames/' + draftId);
+    if(r.status === 401){ window.location.href = '/login'; return; }
+    if(!r.ok){ clearInterval(pollTimer); renderForm(); return; }
+    const d = await r.json();
+
+    if(d.status === 'pending'){ renderWaiting(d.frames_count); return; }
+    clearInterval(pollTimer);
+
+    if(d.status === 'error'){
+      document.getElementById('stage').innerHTML = `
+        <div class="notice"><b>Не получилось.</b><br>
+          <span class="err">${d.error || 'Кадры не удалось создать'}</span><br><br>
+          Деньги вернулись на баланс.</div>
+        <button class="btn btn-primary" style="width:100%; margin-top:20px;"
+          onclick="location.href='/frames'">Попробовать снова</button>`;
+      return;
+    }
+
+    if(d.status === 'expired'){
+      document.getElementById('stage').innerHTML = `
+        <div class="notice">Срок хранения этих кадров истёк.</div>
+        <button class="btn btn-primary" style="width:100%; margin-top:20px;"
+          onclick="location.href='/frames'">Сделать новые</button>`;
+      return;
+    }
+
+    renderReady(d);
+  }catch(e){}
+}
+
+function renderReady(d){
+  document.getElementById('stage').innerHTML = `
+    <div class="frames-grid">
+      ${d.images.map((im, i) => `
+        <div class="frame-cell">
+          <img src="${im.image_path}" alt="Кадр ${i+1}" loading="lazy">
+          <span class="frame-num">${i+1}</span>
+        </div>`).join('')}
+    </div>
+
+    ${d.voice_text ? `
+    <div class="field" style="margin-top:30px;">
+      <label class="field-label">Что скажет диктор</label>
+      <div class="notice">${d.hook_text ? `<b>${d.hook_text}</b><br><br>` : ''}${d.voice_text}</div>
+    </div>` : ''}
+
+    <div class="notice" style="margin-top:24px;">
+      <b>Следующий шаг — видео.</b> Каждый кадр оживёт настоящим движением.
+      Кнопка появится здесь, когда эта часть будет готова.
+    </div>
+
+    <button class="btn btn-primary" style="width:100%; margin-top:20px;" disabled>
+      Отправить в видео — скоро
+    </button>
+    <button class="btn" style="width:100%; margin-top:10px; border:1px solid var(--hairline);"
+      onclick="location.href='/frames'">Сделать другие кадры</button>
+  `;
+}
+
+// ---------- старт ----------
+
+const draftParam = new URLSearchParams(location.search).get('draft');
+if(draftParam) watch(parseInt(draftParam, 10));
+else renderForm();
+</script>
+
+{% include "footer.html" %}
+</body>
+</html>

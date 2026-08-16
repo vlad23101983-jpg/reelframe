@@ -81,3 +81,46 @@ CREATE TABLE IF NOT EXISTS support_messages (
 
 CREATE INDEX IF NOT EXISTS idx_support_tickets_user ON support_tickets(user_id);
 CREATE INDEX IF NOT EXISTS idx_support_messages_ticket ON support_messages(ticket_id);
+
+-- ================================================================
+-- Тариф "Кадры": человек сперва получает картинки, смотрит на них,
+-- и только потом отправляет их в видео.
+--
+-- Между этими двумя шагами человек уходит думать: закрывает вкладку,
+-- возвращается через час, сервис за это время может перезапуститься.
+-- Поэтому черновик обязан лежать в базе, а не в памяти процесса, как
+-- обычная генерация в TASKS.
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS frame_drafts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER NOT NULL REFERENCES users(id),
+    topic         TEXT NOT NULL DEFAULT '',
+    source        TEXT NOT NULL,              -- 'generate' (рисует ИИ) | 'upload' (свои фото)
+    duration      INTEGER NOT NULL,
+    language      TEXT NOT NULL DEFAULT 'ru',
+    frames_count  INTEGER NOT NULL,
+    price_kop     INTEGER NOT NULL,           -- списано за этап картинок
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending | ready | error
+    -- Сценарий целиком (hook_text, voice_text, social_description, hashtags).
+    -- Пригодится на втором шаге, чтобы не платить за него повторно.
+    script_json   TEXT,
+    error_message TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS frame_images (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    draft_id      INTEGER NOT NULL REFERENCES frame_drafts(id),
+    position      INTEGER NOT NULL,
+    image_path    TEXT NOT NULL,
+    -- Для сгенерированных — промпт сцены. Для загруженных фото — то,
+    -- что Gemini увидел на снимке. И то и другое понадобится, чтобы
+    -- объяснить Veo, что должно ожить в кадре.
+    prompt        TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_frame_drafts_user ON frame_drafts(user_id);
+CREATE INDEX IF NOT EXISTS idx_frame_images_draft ON frame_images(draft_id);
