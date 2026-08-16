@@ -194,7 +194,9 @@ def get_motion_prompts(frame_descriptions: list, language: str = "ru") -> list:
     """
     fallback = [
         "Subtle slow camera push-in. Natural ambient motion only. "
-        "Keep the composition and subject exactly as in the source image."
+        "Keep the composition and subject exactly as in the source image. "
+        "Quiet ambient sound of the scene. "
+        "No speech, no dialogue, no singing, no talking, lips closed."
     ] * len(frame_descriptions)
 
     if not frame_descriptions:
@@ -215,7 +217,15 @@ def get_motion_prompts(frame_descriptions: list, language: str = "ru") -> list:
         f"остаться ровно теми же, что на исходном изображении.\n"
         f"Не вводи новых объектов, не меняй план, не описывай смену сцены. "
         f"Движение должно быть спокойным — это 3-4 секунды экранного времени.\n"
-        f"Не упоминай речь, диалоги и звук.\n"
+        f"ЗВУК. В каждом промпте отдельным предложением опиши звуки, которые "
+        f"рождает сам кадр: шаги, клавиши, ветер, посуда, шум улицы, музыка "
+        f"места. Это заметно оживляет ролик.\n"
+        f"РЕЧЬ ЗАПРЕЩЕНА. В кадре никто не говорит и не поёт: ни реплик, ни "
+        f"диалогов, ни закадрового голоса, ни пения. Губы не двигаются, люди "
+        f"молчат. Прямо напиши это в конце каждого промпта: "
+        f"'No speech, no dialogue, no singing, no talking, lips closed.'\n"
+        f"Поверх ролика идёт собственная озвучка диктора, и любой голос из "
+        f"кадра накладывается на неё и портит результат.\n"
         f"Ответ: СТРОГО JSON-массив из {len(frame_descriptions)} строк, без markdown."
     )
 
