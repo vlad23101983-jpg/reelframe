@@ -28,9 +28,14 @@ from db import get_db
 from auth import get_current_user
 from pages import templates
 
-from app.script_generator import get_video_script, get_script_for_photos
+from app.script_generator import get_video_script, get_script_for_photos, get_motion_prompts
 from app.frame_images import generate_frame_image
 from app.frame_photos import normalize_photo, describe_photos
+from app.frame_video import animate_frames
+from app.config import VOICE_PRESETS
+from app.voice import generate_speech_with_timings
+from app.assembler import assemble_final_video
+from generate import pick_music_track
 
 router = APIRouter(tags=["frames"])
 
@@ -56,6 +61,15 @@ FRAME_PRICES = {
 }
 
 ALLOWED_SOURCES = tuple(FRAME_PRICES)
+
+# ЦЕНА ВТОРОГО ШАГА — тоже предварительная.
+# Себестоимость Veo Lite: 4 ₽ за секунду заказанного видео. Клипы Veo
+# короче 4 секунд не бывают, поэтому заказываем 4 сек на кадр и лишнее
+# отрезаем — то есть 16 / 20 / 24 секунды на ролик, около 64 / 80 / 96 ₽.
+VIDEO_PRICES = {10: 170, 15: 220, 20: 260}
+
+WORK_DIR = "work"
+os.makedirs(WORK_DIR, exist_ok=True)
 
 # Черновик живёт трое суток: человеку нужно время подумать, но вечно
 # держать картинки на диске нельзя.
@@ -390,6 +404,239 @@ async def _build_from_photos(draft_dir: str, photo_files: list, duration: int,
 
 
 # ---------------------------------------------------------------------------
+# Второй шаг: кадры → видео
+# ---------------------------------------------------------------------------
+
+class RenderBody(BaseModel):
+    voice: str = "v_artem"
+    music: str = "m_energetic"
+    hook: bool = True
+    subtitles: bool = True
+
+
+@router.post("/api/frames/{draft_id}/render")
+async def frames_render(draft_id: int, body: RenderBody, request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "auth_required", "message": "Войдите, чтобы собрать видео"}, status_code=401)
+
+    draft, images = _load_draft(draft_id, user["id"])
+    if not draft:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    if draft["status"] != "ready":
+        return JSONResponse(
+            {"error": "not_ready", "message": "Кадры этого черновика недоступны"},
+            status_code=400,
+        )
+
+    if not images:
+        return JSONResponse({"error": "no_images", "message": "У черновика нет кадров"}, status_code=400)
+
+    # Файлы кадров должны быть на диске: автоочистка могла их уже убрать,
+    # а строки в базе оставить.
+    missing = [i for i in images if not os.path.exists(i["image_path"].lstrip("/"))]
+    if missing:
+        return JSONResponse(
+            {"error": "frames_gone", "message": "Кадры больше не хранятся на сервере — сделайте новые"},
+            status_code=400,
+        )
+
+    duration = draft["duration"]
+    price_kop = VIDEO_PRICES[duration] * 100
+
+    db = get_db()
+    try:
+        # UNIQUE на draft_id не даст оплатить один и тот же черновик дважды,
+        # даже если кнопку нажали в двух вкладках одновременно.
+        existing = db.execute(
+            "SELECT id, status FROM frame_videos WHERE draft_id = ?", (draft_id,)
+        ).fetchone()
+        if existing:
+            return JSONResponse(
+                {"error": "already_started", "message": "Видео по этим кадрам уже собирается"},
+                status_code=409,
+            )
+
+        cur = db.execute(
+            "UPDATE users SET balance_kop = balance_kop - ? WHERE id = ? AND balance_kop >= ?",
+            (price_kop, user["id"], price_kop),
+        )
+        if cur.rowcount != 1:
+            db.rollback()
+            return JSONResponse(
+                {"error": "insufficient_balance", "message": "Недостаточно средств на балансе"},
+                status_code=402,
+            )
+
+        cur = db.execute(
+            "INSERT INTO generations (user_id, topic, source, duration, price_kop, status) "
+            "VALUES (?, ?, 'frames', ?, ?, 'pending')",
+            (user["id"], draft["topic"], duration, price_kop),
+        )
+        generation_id = cur.lastrowid
+
+        try:
+            db.execute(
+                "INSERT INTO frame_videos (draft_id, user_id, generation_id, price_kop, status) "
+                "VALUES (?, ?, ?, ?, 'pending')",
+                (draft_id, user["id"], generation_id, price_kop),
+            )
+        except Exception:
+            # Кто-то успел раньше — деньги не списываем.
+            db.rollback()
+            return JSONResponse(
+                {"error": "already_started", "message": "Видео по этим кадрам уже собирается"},
+                status_code=409,
+            )
+
+        db.commit()
+    finally:
+        db.close()
+
+    asyncio.create_task(_render_video(draft_id, generation_id, draft, images, body))
+    return {"ok": True, "price": price_kop // 100}
+
+
+def _fail_render(draft_id: int, generation_id: int, message: str) -> None:
+    """Помечает рендер ошибкой и возвращает деньги ровно один раз."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT user_id, price_kop, status FROM frame_videos WHERE draft_id = ?",
+            (draft_id,),
+        ).fetchone()
+        if not row or row["status"] == "error":
+            return
+
+        cur = db.execute(
+            "UPDATE frame_videos SET status = 'error', error_message = ? "
+            "WHERE draft_id = ? AND status != 'error'",
+            (message, draft_id),
+        )
+        if cur.rowcount == 1:
+            db.execute(
+                "UPDATE generations SET status = 'error', error_message = ? WHERE id = ?",
+                (message, generation_id),
+            )
+            db.execute(
+                "UPDATE users SET balance_kop = balance_kop + ? WHERE id = ?",
+                (row["price_kop"], row["user_id"]),
+            )
+        db.commit()
+    finally:
+        db.close()
+
+
+def _set_step(draft_id: int, step: int) -> None:
+    db = get_db()
+    try:
+        db.execute("UPDATE frame_videos SET step = ? WHERE draft_id = ?", (step, draft_id))
+        db.commit()
+    finally:
+        db.close()
+
+
+async def _render_video(draft_id: int, generation_id: int, draft: dict,
+                        images: list, opts: RenderBody):
+    work_dir = os.path.join(WORK_DIR, f"frames_{draft_id}")
+    os.makedirs(work_dir, exist_ok=True)
+
+    async with _draft_semaphore:
+        try:
+            script = json.loads(draft.get("script_json") or "{}")
+            voice_text = script.get("voice_text") or ""
+            if not voice_text:
+                raise RuntimeError("У черновика нет текста для озвучки")
+
+            duration = float(draft["duration"])
+            language = draft["language"]
+            image_paths = [i["image_path"].lstrip("/") for i in images]
+            descriptions = [i["prompt"] for i in images]
+
+            # 1. Промпты движения
+            _set_step(draft_id, 1)
+            motion_prompts = await asyncio.to_thread(get_motion_prompts, descriptions, language)
+
+            # 2. Озвучка — параллельно с видео, она заметно быстрее
+            _set_step(draft_id, 2)
+            audio_path = os.path.join(work_dir, "voice.mp3")
+            lang_voices = VOICE_PRESETS.get(language, VOICE_PRESETS["ru"])
+            preset = lang_voices.get(opts.voice, list(lang_voices.values())[0])
+
+            voice_job = asyncio.to_thread(
+                generate_speech_with_timings, voice_text, audio_path,
+                preset["voice_id"], "eleven_v3",
+            )
+
+            # 3. Оживление кадров
+            _set_step(draft_id, 3)
+            clip_seconds = duration / len(image_paths)
+            clips_job = animate_frames(image_paths, motion_prompts, work_dir, clip_seconds)
+
+            (_, word_timings), clips = await asyncio.gather(voice_job, clips_job)
+
+            # 4. Сборка
+            _set_step(draft_id, 4)
+            music_path = pick_music_track(opts.music)
+            final_path = os.path.join(work_dir, "final.mp4")
+
+            await asyncio.to_thread(
+                assemble_final_video,
+                video_files=clips,
+                audio_file=audio_path,
+                output_path=final_path,
+                work_dir=work_dir,
+                bg_music_path=music_path,
+                hook_text=script.get("hook_text", "") if opts.hook else "",
+                target_duration=duration,
+                word_timings=word_timings if opts.subtitles else None,
+            )
+
+            public_name = f"frames_{draft_id}_{generation_id}.mp4"
+            public_path = os.path.join("media", public_name)
+            shutil.move(final_path, public_path)
+
+            expires_at = (datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+            db = get_db()
+            try:
+                db.execute(
+                    "UPDATE generations SET status = 'done', video_path = ?, expires_at = ?, "
+                    "social_description = ?, hashtags = ? WHERE id = ?",
+                    (f"/media/{public_name}", expires_at,
+                     script.get("social_description", ""),
+                     json.dumps(script.get("hashtags", []), ensure_ascii=False),
+                     generation_id),
+                )
+                db.execute(
+                    "UPDATE frame_videos SET status = 'done', step = 5 WHERE draft_id = ?",
+                    (draft_id,),
+                )
+                db.commit()
+            finally:
+                db.close()
+
+            print(f"[кадры→видео] Черновик {draft_id}: ролик готов", flush=True)
+
+        except Exception as e:
+            print(f"[кадры→видео] Черновик {draft_id} не собрался: {e}", flush=True)
+            _fail_render(draft_id, generation_id, str(e))
+
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+
+@router.get("/api/frames/voices")
+async def frames_voices():
+    """Голоса для выпадающего списка на странице — те же, что в обычном создании."""
+    return {
+        lang: [{"key": k, "title": v["title"], "description": v["description"]}
+               for k, v in voices.items()]
+        for lang, voices in VOICE_PRESETS.items()
+    }
+
+
+# ---------------------------------------------------------------------------
 # Чтение
 # ---------------------------------------------------------------------------
 
@@ -430,16 +677,48 @@ async def frames_get(draft_id: int, request: Request):
         except Exception:
             script = {}
 
+    db = get_db()
+    try:
+        video = db.execute(
+            "SELECT fv.status, fv.step, fv.error_message, g.video_path, "
+            "       g.social_description, g.hashtags "
+            "FROM frame_videos fv LEFT JOIN generations g ON g.id = fv.generation_id "
+            "WHERE fv.draft_id = ?",
+            (draft_id,),
+        ).fetchone()
+    finally:
+        db.close()
+
+    video_block = None
+    if video:
+        hashtags = []
+        if video["hashtags"]:
+            try:
+                hashtags = json.loads(video["hashtags"])
+            except Exception:
+                hashtags = []
+        video_block = {
+            "status": video["status"],
+            "step": video["step"],
+            "error": video["error_message"],
+            "video_url": video["video_path"],
+            "social_description": video["social_description"] or "",
+            "hashtags": hashtags,
+        }
+
     return {
         "id": draft["id"],
         "status": draft["status"],
         "source": draft["source"],
         "duration": draft["duration"],
+        "language": draft["language"],
         "topic": draft["topic"],
         "frames_count": draft["frames_count"],
         "error": draft["error_message"],
         "hook_text": script.get("hook_text", ""),
         "voice_text": script.get("voice_text", ""),
+        "video_price": VIDEO_PRICES[draft["duration"]],
+        "video": video_block,
         "images": images,
     }
 
@@ -449,6 +728,10 @@ async def frames_get(draft_id: int, request: Request):
 # ---------------------------------------------------------------------------
 
 STALE_DRAFT_MINUTES = 40
+
+# Veo на шесть кадров работает заметно дольше, чем генерация картинок,
+# поэтому порог отдельный и с запасом.
+STALE_RENDER_MINUTES = 90
 
 
 def recover_stuck_drafts() -> None:
@@ -474,3 +757,21 @@ def recover_stuck_drafts() -> None:
 
     if rows:
         print(f"[кадры] Возвращено денег за прерванные черновики: {len(rows)}", flush=True)
+
+    # То же самое для второго шага: сборка ролика тоже живёт в asyncio-задаче
+    # и тоже исчезает вместе с процессом.
+    db = get_db()
+    try:
+        stuck = db.execute(
+            f"SELECT draft_id, generation_id FROM frame_videos WHERE status = 'pending' "
+            f"AND created_at <= datetime('now', '-{STALE_RENDER_MINUTES} minutes')"
+        ).fetchall()
+    finally:
+        db.close()
+
+    for row in stuck:
+        _fail_render(row["draft_id"], row["generation_id"],
+                     "Сборка прервалась при перезапуске сервиса — деньги возвращены")
+
+    if stuck:
+        print(f"[кадры→видео] Возвращено денег за прерванные сборки: {len(stuck)}", flush=True)

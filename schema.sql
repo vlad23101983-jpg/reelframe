@@ -124,3 +124,26 @@ CREATE TABLE IF NOT EXISTS frame_images (
 
 CREATE INDEX IF NOT EXISTS idx_frame_drafts_user ON frame_drafts(user_id);
 CREATE INDEX IF NOT EXISTS idx_frame_images_draft ON frame_images(draft_id);
+
+-- Второй шаг тарифа "Кадры": утверждённые кадры отправлены в видео.
+--
+-- Сам ролик пишется в общую таблицу generations (source = 'frames') —
+-- тогда он сам собой попадает в историю личного кабинета, в админку и
+-- под существующую автоочистку через 24 часа. Здесь хранится только
+-- связь с черновиком и состояние рендера.
+--
+-- UNIQUE на draft_id — защита от двойной оплаты: сколько бы раз ни нажали
+-- кнопку, второй ряд просто не вставится.
+CREATE TABLE IF NOT EXISTS frame_videos (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    draft_id       INTEGER NOT NULL UNIQUE REFERENCES frame_drafts(id),
+    user_id        INTEGER NOT NULL REFERENCES users(id),
+    generation_id  INTEGER REFERENCES generations(id),
+    price_kop      INTEGER NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error
+    step           INTEGER NOT NULL DEFAULT 0,
+    error_message  TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_frame_videos_draft ON frame_videos(draft_id);

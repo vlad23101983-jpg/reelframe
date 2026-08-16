@@ -176,6 +176,73 @@ def get_script_for_photos(photo_descriptions: list, duration: int, topic: str = 
     return json.loads(raw_text)
 
 
+def get_motion_prompts(frame_descriptions: list, language: str = "ru") -> list:
+    """
+    Превращает описания кадров в короткие англоязычные промпты движения
+    для image-to-video.
+
+    Кадр уже утверждён человеком, менять его нельзя — значит промпт должен
+    описывать не сюжет, а исключительно то, что в этом кадре шевелится:
+    движение камеры, живые детали, свет. Всё, что звучит как новая сцена,
+    заставит Veo перерисовать картинку, и человек получит не то, что одобрил.
+
+    Промпты всегда на английском, независимо от языка озвучки — модели
+    генерации так работают заметно лучше.
+
+    При неудаче возвращает безопасные заглушки: без промптов движения
+    ролик всё равно должен собраться.
+    """
+    fallback = [
+        "Subtle slow camera push-in. Natural ambient motion only. "
+        "Keep the composition and subject exactly as in the source image."
+    ] * len(frame_descriptions)
+
+    if not frame_descriptions:
+        return []
+
+    frames_list = "\n".join(
+        f"Frame {i + 1}: {d}" for i, d in enumerate(frame_descriptions)
+    )
+
+    prompt = (
+        f"Ниже описаны {len(frame_descriptions)} кадров короткого вертикального ролика. "
+        f"Каждый кадр — уже готовое изображение, которое НЕЛЬЗЯ менять: оно пойдёт "
+        f"первым кадром в модель image-to-video.\n\n"
+        f"{frames_list}\n\n"
+        f"Для каждого кадра напиши промпт движения НА АНГЛИЙСКОМ, 15-30 слов. "
+        f"Описывай ТОЛЬКО движение: движение камеры, оживающие детали, свет, "
+        f"частицы, ткань, волосы, воду. Композиция, персонажи и обстановка должны "
+        f"остаться ровно теми же, что на исходном изображении.\n"
+        f"Не вводи новых объектов, не меняй план, не описывай смену сцены. "
+        f"Движение должно быть спокойным — это 3-4 секунды экранного времени.\n"
+        f"Не упоминай речь, диалоги и звук.\n"
+        f"Ответ: СТРОГО JSON-массив из {len(frame_descriptions)} строк, без markdown."
+    )
+
+    try:
+        interaction = ai_client.interactions.create(
+            model="gemini-3.6-flash",
+            input=prompt
+        )
+        raw_text = interaction.output_text.strip()
+        match = re.search(r'\[.*\]', raw_text, re.DOTALL)
+        if match:
+            raw_text = match.group(0)
+
+        prompts = json.loads(raw_text)
+        if not isinstance(prompts, list) or not prompts:
+            return fallback
+
+        prompts = [str(p) for p in prompts][:len(frame_descriptions)]
+        if len(prompts) < len(frame_descriptions):
+            prompts += fallback[len(prompts):]
+        return prompts
+
+    except Exception as e:
+        print(f"[кадры→видео] Промпты движения не получены ({e}) — беру запасные", flush=True)
+        return fallback
+
+
 def translate_music_prompt(user_text: str) -> str:
     """Переводит запрос о стиле музыки в короткий англоязычный промпт."""
     prompt = (

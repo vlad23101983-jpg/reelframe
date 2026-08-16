@@ -221,7 +221,6 @@ function renderWaiting(count){
 }
 
 function watch(draftId){
-  renderWaiting(framesNeeded());
   if(pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => load(draftId), 2500);
   load(draftId);
@@ -235,6 +234,13 @@ async function load(draftId){
     const d = await r.json();
 
     if(d.status === 'pending'){ renderWaiting(d.frames_count); return; }
+
+    // Кадры готовы, но ролик ещё собирается — опрос продолжаем.
+    if(d.status === 'ready' && d.video && d.video.status === 'pending'){
+      renderVideoWaiting(d);
+      return;
+    }
+
     clearInterval(pollTimer);
 
     if(d.status === 'error'){
@@ -259,15 +265,49 @@ async function load(draftId){
   }catch(e){}
 }
 
-function renderReady(d){
+const MUSIC = [
+  ['m_energetic', 'Энергичная'],
+  ['m_business',  'Бизнес / фон'],
+  ['m_calm',      'Спокойная'],
+  ['m_none',      'Без музыки']
+];
+
+const vopts = { voice: '', music: 'm_energetic', hook: true, subtitles: true };
+let VOICES = null;
+
+async function loadVoices(){
+  if(VOICES) return VOICES;
+  try{
+    const r = await fetch('/api/frames/voices');
+    VOICES = await r.json();
+  }catch(e){ VOICES = {ru: [], en: []}; }
+  return VOICES;
+}
+
+function framesGridHtml(d){
+  return `<div class="frames-grid">
+    ${d.images.map((im, i) => `
+      <div class="frame-cell">
+        <img src="${im.image_path}" alt="Кадр ${i+1}" loading="lazy">
+        <span class="frame-num">${i+1}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
+async function renderReady(d){
+  // Ролик уже собирается или готов — показываем его, а не форму.
+  if(d.video){
+    if(d.video.status === 'done') return renderVideoDone(d);
+    if(d.video.status === 'error') return renderVideoError(d);
+    return renderVideoWaiting(d);
+  }
+
+  const voices = await loadVoices();
+  const list = voices[d.language] || voices.ru || [];
+  if(!vopts.voice && list.length) vopts.voice = list[0].key;
+
   document.getElementById('stage').innerHTML = `
-    <div class="frames-grid">
-      ${d.images.map((im, i) => `
-        <div class="frame-cell">
-          <img src="${im.image_path}" alt="Кадр ${i+1}" loading="lazy">
-          <span class="frame-num">${i+1}</span>
-        </div>`).join('')}
-    </div>
+    ${framesGridHtml(d)}
 
     ${d.voice_text ? `
     <div class="field" style="margin-top:30px;">
@@ -275,17 +315,118 @@ function renderReady(d){
       <div class="notice">${d.hook_text ? `<b>${d.hook_text}</b><br><br>` : ''}${d.voice_text}</div>
     </div>` : ''}
 
-    <div class="notice" style="margin-top:24px;">
-      <b>Следующий шаг — видео.</b> Каждый кадр оживёт настоящим движением.
-      Кнопка появится здесь, когда эта часть будет готова.
+    <div class="field">
+      <label class="field-label">Голос диктора</label>
+      <select onchange="vopts.voice=this.value"
+        style="width:100%; padding:11px 13px; border:1px solid var(--hairline); border-radius:8px;
+               font-family:inherit; font-size:14px; background:var(--bg-panel); color:var(--ink);">
+        ${list.map(v => `<option value="${v.key}" ${v.key===vopts.voice?'selected':''}>${v.title} — ${v.description}</option>`).join('')}
+      </select>
     </div>
 
-    <button class="btn btn-primary" style="width:100%; margin-top:20px;" disabled>
-      Отправить в видео — скоро
+    <div class="field">
+      <label class="field-label">Музыка</label>
+      <select onchange="vopts.music=this.value"
+        style="width:100%; padding:11px 13px; border:1px solid var(--hairline); border-radius:8px;
+               font-family:inherit; font-size:14px; background:var(--bg-panel); color:var(--ink);">
+        ${MUSIC.map(([k,t]) => `<option value="${k}" ${k===vopts.music?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:10px; font-size:14px; cursor:pointer; margin-bottom:10px;">
+        <input type="checkbox" ${vopts.hook?'checked':''} onchange="vopts.hook=this.checked">
+        Заголовок-хук в начале ролика
+      </label>
+      <label style="display:flex; align-items:center; gap:10px; font-size:14px; cursor:pointer;">
+        <input type="checkbox" ${vopts.subtitles?'checked':''} onchange="vopts.subtitles=this.checked">
+        Караоке-субтитры
+      </label>
+    </div>
+
+    <div class="price-line">Сборка видео — <b>${d.video_price} ₽</b></div>
+
+    <button class="btn btn-primary" style="width:100%;" onclick="startRender(${d.id})">
+      Отправить в видео
     </button>
     <button class="btn" style="width:100%; margin-top:10px; border:1px solid var(--hairline);"
       onclick="location.href='/frames'">Сделать другие кадры</button>
+    <div id="renderErr" class="err" style="margin-top:14px;"></div>
   `;
+}
+
+async function startRender(draftId){
+  const err = document.getElementById('renderErr');
+  err.textContent = '';
+  const btn = document.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Запускаем…';
+
+  try{
+    const r = await fetch('/api/frames/' + draftId + '/render', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(vopts)
+    });
+    if(r.status === 401){ window.location.href = '/login'; return; }
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.message || 'Не удалось запустить сборку');
+    watch(draftId);
+  }catch(e){
+    err.textContent = e.message || 'Что-то пошло не так';
+    btn.disabled = false;
+    btn.textContent = 'Отправить в видео';
+  }
+}
+
+function renderVideoWaiting(d){
+  const step = d.video.step || 0;
+  const rows = [
+    'Придумываем движение в кадре',
+    'Записываем озвучку',
+    'Оживляем кадры',
+    'Собираем ролик'
+  ];
+  document.getElementById('stage').innerHTML = `
+    <div class="notice"><b>Собираем видео.</b> Оживление кадров занимает несколько минут —
+    это самая долгая часть. Страницу можно закрыть и вернуться по этой же ссылке.</div>
+    <div class="progress-list" style="margin-top:20px;">
+      ${rows.map((t,i) => `
+        <div class="prow ${step > i+1 ? 'done' : ''} ${step === i+1 ? 'active' : ''}">
+          <span class="pdot">${i+1}</span> ${t}
+        </div>`).join('')}
+    </div>
+    ${framesGridHtml(d)}`;
+}
+
+function renderVideoError(d){
+  document.getElementById('stage').innerHTML = `
+    <div class="notice"><b>Видео не собралось.</b><br>
+      <span class="err">${d.video.error || 'Что-то пошло не так'}</span><br><br>
+      Деньги за сборку вернулись на баланс. Кадры остались, но повторно
+      отправить в видео этот черновик уже нельзя — сделайте новые.</div>
+    ${framesGridHtml(d)}
+    <button class="btn btn-primary" style="width:100%; margin-top:20px;"
+      onclick="location.href='/frames'">Сделать новые кадры</button>`;
+}
+
+function renderVideoDone(d){
+  const tags = (d.video.hashtags || []).join(' ');
+  document.getElementById('stage').innerHTML = `
+    <video src="${d.video.video_url}" controls
+      style="width:100%; max-width:380px; display:block; margin:0 auto 14px; border-radius:12px;"></video>
+    <a href="${d.video.video_url}" download class="btn btn-primary" style="width:100%;">Скачать видео</a>
+    <p style="font-size:11.5px; color:var(--muted); text-align:center; margin:8px 0 24px;">
+      Видео хранится на сервере 24 часа — скачайте его сейчас</p>
+
+    ${d.video.social_description ? `
+    <div class="field">
+      <label class="field-label">Описание для поста</label>
+      <div class="notice">${d.video.social_description}
+        ${tags ? `<br><br><span style="color:var(--accent);">${tags}</span>` : ''}</div>
+    </div>` : ''}
+
+    <button class="btn btn-primary" style="width:100%;"
+      onclick="location.href='/frames'">Сделать ещё</button>`;
 }
 
 // ---------- старт ----------
