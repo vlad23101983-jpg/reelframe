@@ -34,7 +34,7 @@ from app.frame_photos import normalize_photo, describe_photos
 from app.frame_video import animate_frames
 from app.config import VOICE_PRESETS
 from app.voice import generate_speech_with_timings
-from app.assembler import assemble_final_video
+from app.frame_mixer import build_parts, mix, read_parts, load_mix, DEFAULT_MIX
 from generate import pick_music_track
 
 router = APIRouter(tags=["frames"])
@@ -576,22 +576,26 @@ async def _render_video(draft_id: int, generation_id: int, draft: dict,
 
             (_, word_timings), clips = await asyncio.gather(voice_job, clips_job)
 
-            # 4. Сборка
+            # 4. Дорожки и сведение
             _set_step(draft_id, 4)
             music_path = pick_music_track(opts.music)
+            parts_dir = os.path.join(_draft_dir(draft_id), "parts")
             final_path = os.path.join(work_dir, "final.mp4")
 
             await asyncio.to_thread(
-                assemble_final_video,
+                build_parts,
                 video_files=clips,
                 audio_file=audio_path,
-                output_path=final_path,
+                parts_dir=parts_dir,
                 work_dir=work_dir,
-                bg_music_path=music_path,
+                music_path=music_path,
                 hook_text=script.get("hook_text", "") if opts.hook else "",
                 target_duration=duration,
                 word_timings=word_timings if opts.subtitles else None,
             )
+
+            mix_volumes = dict(DEFAULT_MIX)
+            await asyncio.to_thread(mix, parts_dir, final_path, mix_volumes)
 
             public_name = f"frames_{draft_id}_{generation_id}.mp4"
             public_path = os.path.join("media", public_name)
@@ -609,8 +613,9 @@ async def _render_video(draft_id: int, generation_id: int, draft: dict,
                      generation_id),
                 )
                 db.execute(
-                    "UPDATE frame_videos SET status = 'done', step = 5 WHERE draft_id = ?",
-                    (draft_id,),
+                    "UPDATE frame_videos SET status = 'done', step = 5, mix_json = ? "
+                    "WHERE draft_id = ?",
+                    (json.dumps(mix_volumes), draft_id),
                 )
                 db.commit()
             finally:
@@ -624,6 +629,90 @@ async def _render_video(draft_id: int, generation_id: int, draft: dict,
 
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+
+
+class MixBody(BaseModel):
+    voice: int = 100
+    music: int = 35
+    veo: int = 0
+
+
+@router.post("/api/frames/{draft_id}/mix")
+async def frames_mix(draft_id: int, body: MixBody, request: Request):
+    """
+    Пересобирает готовый ролик с новыми громкостями.
+
+    Денег не берём: кадры уже нарисованы, озвучка записана, за них
+    заплачено. Здесь только заново сводится звук, видеодорожка копируется
+    как есть — это несколько секунд работы ffmpeg.
+    """
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "auth_required"}, status_code=401)
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT fv.generation_id, fv.status, g.video_path "
+            "FROM frame_videos fv LEFT JOIN generations g ON g.id = fv.generation_id "
+            "WHERE fv.draft_id = ? AND fv.user_id = ?",
+            (draft_id, user["id"]),
+        ).fetchone()
+    finally:
+        db.close()
+
+    if not row:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    if row["status"] != "done":
+        return JSONResponse(
+            {"error": "not_ready", "message": "Ролик ещё не готов"}, status_code=400
+        )
+
+    parts_dir = os.path.join(_draft_dir(draft_id), "parts")
+    if not read_parts(parts_dir):
+        return JSONResponse(
+            {"error": "parts_gone", "message": "Дорожки ролика больше не хранятся на сервере"},
+            status_code=400,
+        )
+
+    volumes = load_mix({"voice": body.voice, "music": body.music, "veo": body.veo})
+
+    # Пишем в новый файл, а не поверх старого: браузер держит прежний
+    # открытым, и перезапись на лету даёт битое видео в плеере.
+    public_name = f"frames_{draft_id}_{row['generation_id']}_{int(datetime.utcnow().timestamp())}.mp4"
+    public_path = os.path.join("media", public_name)
+
+    try:
+        await asyncio.to_thread(mix, parts_dir, public_path, volumes)
+    except Exception as e:
+        print(f"[дорожки] Пересборка черновика {draft_id} не удалась: {e}", flush=True)
+        return JSONResponse(
+            {"error": "mix_failed", "message": "Не удалось пересобрать ролик"}, status_code=500
+        )
+
+    old_path = (row["video_path"] or "").lstrip("/")
+
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE generations SET video_path = ? WHERE id = ?",
+            (f"/media/{public_name}", row["generation_id"]),
+        )
+        db.execute(
+            "UPDATE frame_videos SET mix_json = ? WHERE draft_id = ?",
+            (json.dumps(volumes), draft_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    if old_path and os.path.exists(old_path) and old_path != public_path:
+        try:
+            os.remove(old_path)
+        except Exception:
+            pass
+
+    return {"ok": True, "video_url": f"/media/{public_name}", "mix": volumes}
 
 
 @router.get("/api/frames/voices")
@@ -680,7 +769,7 @@ async def frames_get(draft_id: int, request: Request):
     db = get_db()
     try:
         video = db.execute(
-            "SELECT fv.status, fv.step, fv.error_message, g.video_path, "
+            "SELECT fv.status, fv.step, fv.error_message, fv.mix_json, g.video_path, "
             "       g.social_description, g.hashtags "
             "FROM frame_videos fv LEFT JOIN generations g ON g.id = fv.generation_id "
             "WHERE fv.draft_id = ?",
@@ -697,6 +786,23 @@ async def frames_get(draft_id: int, request: Request):
                 hashtags = json.loads(video["hashtags"])
             except Exception:
                 hashtags = []
+
+        # Ссылки на отдельные дорожки — по ним браузер проигрывает ролик
+        # с живой регулировкой громкости, не дёргая сервер.
+        tracks = None
+        parts_dir = os.path.join(_draft_dir(draft_id), "parts")
+        manifest = read_parts(parts_dir)
+        if manifest:
+            base = f"/media/frames/{draft_id}/parts"
+            music = manifest.get("music")
+            tracks = {
+                "video": f"{base}/{manifest['video']}",
+                "voice": f"{base}/{manifest['voice']}",
+                "veo": f"{base}/{manifest['veo']}" if manifest.get("veo") else None,
+                "music": f"/{music}" if music else None,
+                "duration": manifest.get("duration"),
+            }
+
         video_block = {
             "status": video["status"],
             "step": video["step"],
@@ -704,6 +810,8 @@ async def frames_get(draft_id: int, request: Request):
             "video_url": video["video_path"],
             "social_description": video["social_description"] or "",
             "hashtags": hashtags,
+            "mix": load_mix(video["mix_json"]),
+            "tracks": tracks,
         }
 
     return {

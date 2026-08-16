@@ -409,11 +409,48 @@ function renderVideoError(d){
       onclick="location.href='/frames'">Сделать новые кадры</button>`;
 }
 
+let mixState = null;
+
 function renderVideoDone(d){
   const tags = (d.video.hashtags || []).join(' ');
-  document.getElementById('stage').innerHTML = `
+  const t = d.video.tracks;
+  mixState = Object.assign({voice:100, music:35, veo:0}, d.video.mix || {});
+
+  // Дорожки на месте — показываем плеер с живой громкостью. Их нет
+  // (например, истёк срок хранения) — показываем обычное готовое видео.
+  const player = t ? `
+    <div style="position:relative; max-width:380px; margin:0 auto 16px;">
+      <video id="mixVideo" src="${t.video}" playsinline
+        style="width:100%; display:block; border-radius:12px; background:#000;"></video>
+    </div>
+    <audio id="trVoice" src="${t.voice}" preload="auto"></audio>
+    ${t.music ? `<audio id="trMusic" src="${t.music}" preload="auto" loop></audio>` : ''}
+    ${t.veo ? `<audio id="trVeo" src="${t.veo}" preload="auto"></audio>` : ''}
+
+    <div style="display:flex; gap:10px; justify-content:center; margin-bottom:22px;">
+      <button class="btn" id="playBtn" onclick="togglePlay()"
+        style="border:1px solid var(--hairline); padding:9px 22px;">▶ Прослушать</button>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Громкость дорожек</label>
+      <div class="field-hint">Двигайте на слух — изменения слышны сразу</div>
+      ${sliderHtml('voice', 'Озвучка', mixState.voice)}
+      ${t.music ? sliderHtml('music', 'Музыка', mixState.music) : ''}
+      ${t.veo ? sliderHtml('veo', 'Звук из кадров', mixState.veo) : ''}
+      <div style="display:flex; align-items:center; gap:12px; margin-top:16px;">
+        <button class="btn btn-primary" id="mixBtn" onclick="applyMix(${d.id})"
+          style="flex:0 0 auto; padding:11px 22px;">Сохранить громкость</button>
+        <span style="font-size:12px; color:var(--muted);" id="mixHint">Пересборка бесплатна</span>
+      </div>
+    </div>
+  ` : `
     <video src="${d.video.video_url}" controls
-      style="width:100%; max-width:380px; display:block; margin:0 auto 14px; border-radius:12px;"></video>
+      style="width:100%; max-width:380px; display:block; margin:0 auto 16px; border-radius:12px;"></video>
+  `;
+
+  document.getElementById('stage').innerHTML = `
+    ${player}
     <a href="${d.video.video_url}" download class="btn btn-primary" style="width:100%;">Скачать видео</a>
     <p style="font-size:11.5px; color:var(--muted); text-align:center; margin:8px 0 24px;">
       Видео хранится на сервере 24 часа — скачайте его сейчас</p>
@@ -427,6 +464,102 @@ function renderVideoDone(d){
 
     <button class="btn btn-primary" style="width:100%;"
       onclick="location.href='/frames'">Сделать ещё</button>`;
+
+  if(t) wireTracks();
+}
+
+function sliderHtml(key, label, value){
+  return `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+    <span style="font-size:13px; width:120px; flex-shrink:0;">${label}</span>
+    <input type="range" min="0" max="150" step="5" value="${value}" id="sl_${key}"
+      oninput="setVol('${key}', this.value)" style="flex:1;">
+    <span style="font-size:13px; width:44px; text-align:right;" id="out_${key}">${value}%</span>
+  </div>`;
+}
+
+// Громкость дорожки: ползунок в процентах, потолок тот же, что на сервере.
+const FULL = { voice: 1.0, music: 0.31, veo: 0.60 };
+
+function trackEl(key){
+  return document.getElementById(
+    key === 'voice' ? 'trVoice' : key === 'music' ? 'trMusic' : 'trVeo');
+}
+
+function setVol(key, value){
+  mixState[key] = parseInt(value, 10);
+  const out = document.getElementById('out_' + key);
+  if(out) out.textContent = mixState[key] + '%';
+  const el = trackEl(key);
+  if(el) el.volume = Math.max(0, Math.min(1, mixState[key] / 100 * FULL[key]));
+  const hint = document.getElementById('mixHint');
+  if(hint) hint.textContent = 'Не забудьте сохранить';
+}
+
+function eachTrack(fn){
+  ['voice','music','veo'].forEach(k => { const el = trackEl(k); if(el) fn(el, k); });
+}
+
+function wireTracks(){
+  const v = document.getElementById('mixVideo');
+  // Картинка идёт без звука: весь звук в отдельных дорожках, иначе он
+  // сложился бы дважды.
+  v.muted = true;
+  eachTrack((el, k) => { el.volume = Math.max(0, Math.min(1, mixState[k] / 100 * FULL[k])); });
+
+  // Дорожки ведём по видео: оно задаёт время, остальные подтягиваются.
+  // Расхождение больше четверти секунды на слух заметно, меньше — нет.
+  v.addEventListener('timeupdate', () => {
+    eachTrack(el => {
+      if(Math.abs(el.currentTime - v.currentTime) > 0.25 && el.duration){
+        el.currentTime = Math.min(v.currentTime, el.duration - 0.05);
+      }
+    });
+  });
+  v.addEventListener('pause', () => { eachTrack(el => el.pause()); setPlayLabel(false); });
+  v.addEventListener('ended', () => { eachTrack(el => el.pause()); setPlayLabel(false); });
+}
+
+function setPlayLabel(playing){
+  const b = document.getElementById('playBtn');
+  if(b) b.textContent = playing ? '❚❚ Пауза' : '▶ Прослушать';
+}
+
+function togglePlay(){
+  const v = document.getElementById('mixVideo');
+  if(!v) return;
+  if(v.paused){
+    eachTrack(el => { el.currentTime = v.currentTime; el.play().catch(()=>{}); });
+    v.play().catch(()=>{});
+    setPlayLabel(true);
+  } else {
+    v.pause();
+  }
+}
+
+async function applyMix(draftId){
+  const btn = document.getElementById('mixBtn');
+  const hint = document.getElementById('mixHint');
+  btn.disabled = true;
+  btn.textContent = 'Пересобираем…';
+  hint.textContent = 'Несколько секунд';
+
+  try{
+    const r = await fetch('/api/frames/' + draftId + '/mix', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(mixState)
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.message || 'Не удалось пересобрать');
+
+    const link = document.querySelector('a[download]');
+    if(link) link.href = data.video_url;
+    hint.textContent = 'Сохранено';
+  }catch(e){
+    hint.textContent = e.message || 'Не получилось';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Сохранить громкость';
+  }
 }
 
 // ---------- старт ----------

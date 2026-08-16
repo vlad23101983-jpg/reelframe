@@ -142,6 +142,10 @@ CREATE TABLE IF NOT EXISTS frame_videos (
     price_kop      INTEGER NOT NULL,
     status         TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error
     step           INTEGER NOT NULL DEFAULT 0,
+    -- Громкости дорожек: {"voice": 100, "music": 35, "veo": 0}.
+    -- Ролик хранится разобранным на части, поэтому громкости можно менять
+    -- и пересобирать сколько угодно — платить заново не за что.
+    mix_json       TEXT,
     error_message  TEXT,
     created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
