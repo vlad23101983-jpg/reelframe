@@ -342,7 +342,7 @@ textarea#topic:focus{ outline:none; border-color:var(--accent); }
   .music-grid{ grid-template-columns:repeat(2, 1fr); }
 
   .hero{ padding:36px 0 18px; }
-section{ padding:28px 0; }
+section{ padding:36px 0; }
 .section-head{ margin-bottom:18px; }
 .dot-divider{ padding:8px 0; }
 
